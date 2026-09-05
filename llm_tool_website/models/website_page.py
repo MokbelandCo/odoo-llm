@@ -41,7 +41,8 @@ class WebsiteToolPage(models.Model):
             Dictionary with matching pages
         """
         ws = self._resolve_website(website)
-        domain = ws.website_domain()
+        # Odoo 19 returns an immutable Domain object here.
+        domain = list(ws.website_domain())
         if name:
             domain.append(("name", "ilike", name))
         if url:

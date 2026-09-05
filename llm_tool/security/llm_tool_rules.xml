@@ -8,37 +8,37 @@
     <!-- Base rule: All authenticated users can see 'general' tools -->
     <record id="llm_tool_rule_general" model="ir.rule">
         <field name="name">LLM Tools: General category for all users</field>
-        <field name="model_id" ref="model_llm_tool"/>
+        <field name="model_id" ref="model_llm_tool" />
         <field name="domain_force">[('category', '=', 'general')]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="False"/>
-        <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
     </record>
 
     <!-- System administrators see ALL tools -->
     <record id="llm_tool_rule_admin" model="ir.rule">
         <field name="name">LLM Tools: Admin sees all</field>
-        <field name="model_id" ref="model_llm_tool"/>
+        <field name="model_id" ref="model_llm_tool" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
-        <field name="perm_unlink" eval="True"/>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
+        <field name="perm_unlink" eval="True" />
     </record>
 
     <!-- LLM Managers see ALL tools -->
     <record id="llm_tool_rule_llm_manager" model="ir.rule">
         <field name="name">LLM Tools: LLM Manager sees all</field>
-        <field name="model_id" ref="model_llm_tool"/>
+        <field name="model_id" ref="model_llm_tool" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('llm.group_llm_manager'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
-        <field name="perm_unlink" eval="True"/>
+        <field name="groups" eval="[(4, ref('llm.group_llm_manager'))]" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
+        <field name="perm_unlink" eval="True" />
     </record>
 
 </odoo>

@@ -88,7 +88,8 @@ class AccountToolMixin(models.AbstractModel):
         Account = self.env["account.account"].with_company(company)
         base_domain = [
             *self.env['account.account']._check_company_domain(company),
-            ('deprecated', '=', False)
+            # Odoo 19 replaced account.account.deprecated with active.
+            ('active', '=', True)
         ]
 
         if not identifier or identifier == "all":
