@@ -15,14 +15,32 @@ class TestLLMToolSync(common.TransactionCase):
     def setUp(self):
         super().setUp()
         self.LLMTool = self.env["llm.tool"]
-        # Snapshot the registry that _register_hook built at startup. Tests
-        # layer their own entries on top of it so that the sync only sees the
-        # tools they care about as added or missing; replacing the registry
-        # outright would deactivate every decorator tool already in the DB.
-        self.baseline_registry = dict(self.LLMTool._tool_registry)
+        self.original_registry = dict(self.LLMTool._tool_registry)
         self.baseline_xml_keys = set(self.LLMTool._xml_managed_keys)
-        self.addCleanup(self._set_registry, self.baseline_registry)
+        # A registry that mirrors the function tools already in the DB. Tests
+        # layer their own entries on top of it, so the sync only ever sees the
+        # tools a test set up as added or missing; without the mirror, every
+        # tool contributed by another installed addon would count as an orphan.
+        self.baseline_registry = self._mirror_db_tools()
+        self.addCleanup(self._set_registry, self.original_registry)
         self.addCleanup(self._set_xml_managed_keys, self.baseline_xml_keys)
+
+    def _mirror_db_tools(self):
+        """Build registry entries matching every function tool in the DB."""
+        tools = self.LLMTool.with_context(active_test=False).search(
+            [("implementation", "=", "function")]
+        )
+        return {
+            (tool.decorator_model, tool.decorator_method): {
+                "name": tool.name,
+                "implementation": "function",
+                "decorator_model": tool.decorator_model,
+                "decorator_method": tool.decorator_method,
+                "description": tool.description,
+                "active": tool.active,
+            }
+            for tool in tools
+        }
 
     def _set_registry(self, registry):
         """Replace the decorator registry in place.
@@ -38,9 +56,34 @@ class TestLLMToolSync(common.TransactionCase):
         self.LLMTool._xml_managed_keys.update(keys)
 
     def _use_registry(self, entries=None, xml_keys=None):
-        """Apply the startup registry plus the given test entries."""
+        """Apply the mirrored baseline registry plus the given test entries."""
         self._set_registry({**self.baseline_registry, **(entries or {})})
         self._set_xml_managed_keys(self.baseline_xml_keys | (xml_keys or set()))
+
+    def _registry_entry(self, name, method, model="res.partner", **values):
+        """Build a registry mapping for one tool, matching _create_tool."""
+        return {
+            (model, method): {
+                "name": name,
+                "implementation": "function",
+                "decorator_model": model,
+                "decorator_method": method,
+                "description": f"Desc for {name}",
+                "active": True,
+                **values,
+            }
+        }
+
+    def _create_keeper(self):
+        """Create a tool that is present both in the DB and in the registry.
+
+        ``_sync_tools_to_db`` short-circuits on an empty registry so that a
+        failed decorator scan cannot deactivate every tool. The keeper makes
+        the registry non-empty without adding any work for the sync, so
+        deactivation tests exercise the real branch.
+        """
+        self._create_tool("keeper", method="keeper_method")
+        return self._registry_entry("keeper", "keeper_method")
 
     def _create_tool(self, name, model="res.partner", method=None, **kw):
         """Helper: create a function tool in DB."""
@@ -125,8 +168,9 @@ class TestLLMToolSync(common.TransactionCase):
         self.assertEqual(result["deactivated"], 0)
 
     def test_sync_deactivates_missing_tool(self):
+        keeper = self._create_keeper()
         tool = self._create_tool("orphan", method="orphan_method")
-        self._use_registry()
+        self._use_registry(keeper)
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -136,8 +180,9 @@ class TestLLMToolSync(common.TransactionCase):
         self.assertFalse(tool.active)
 
     def test_sync_skips_xml_managed_deactivation(self):
+        keeper = self._create_keeper()
         tool = self._create_tool("xml_tool", method="xml_method")
-        self._use_registry(xml_keys={("res.partner", "xml_method")})
+        self._use_registry(keeper, xml_keys={("res.partner", "xml_method")})
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
