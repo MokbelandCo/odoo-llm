@@ -12,7 +12,19 @@ class TestAccountToolMixin(TransactionCase):
         super().setUpClass()
         cls.mixin = cls.env["account.tool.mixin"]
 
-        # Find existing accounts for testing
+        # Find existing accounts for testing. cursor_odoo uses without_demo, so
+        # there may be no CoA until we create a stub receivable account.
+        if not cls.env["account.account"].search([], limit=1):
+            cls.env["account.account"].create(
+                {
+                    "code": "110000",
+                    "name": "LLM Test Receivable",
+                    "account_type": "asset_receivable",
+                    "reconcile": True,
+                    "company_id": cls.env.company.id,
+                }
+            )
+
         cls.receivable_account = cls.env["account.account"].search(
             [("account_type", "=", "asset_receivable")], limit=1
         )

@@ -15,7 +15,19 @@ class TestLedgerTools(TransactionCase):
         cls.reconcile_tools = cls.env["account.tool.reconcile"]
         cls.period_tools = cls.env["account.tool.period"]
 
-        # Find accounts and journals
+        # Find accounts and journals. cursor_odoo uses without_demo, so create a
+        # stub receivable if the company has no chart of accounts.
+        if not cls.env["account.account"].search([], limit=1):
+            cls.env["account.account"].create(
+                {
+                    "code": "110000",
+                    "name": "LLM Test Receivable",
+                    "account_type": "asset_receivable",
+                    "reconcile": True,
+                    "company_id": cls.env.company.id,
+                }
+            )
+
         cls.receivable = cls.env["account.account"].search(
             [("account_type", "=", "asset_receivable")], limit=1
         )

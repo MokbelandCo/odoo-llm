@@ -103,7 +103,12 @@ class WebsiteToolConfig(models.Model):
             "custom_code_head": ws.custom_code_head or "",
             "custom_code_footer": ws.custom_code_footer or "",
             "google_maps_api_key": ws.google_maps_api_key or "",
-            "block_third_party_domains": ws.block_third_party_domains,
+            # Odoo 18+ only; omitted/false on Odoo 17 Community.
+            "block_third_party_domains": (
+                ws.block_third_party_domains
+                if "block_third_party_domains" in ws._fields
+                else False
+            ),
             "auth_signup_uninvited": ws.auth_signup_uninvited or "",
         }
 
@@ -188,8 +193,16 @@ class WebsiteToolConfig(models.Model):
             "auth_signup_uninvited": auth_signup_uninvited,
         }
         for field, value in field_map.items():
-            if value is not None:
-                vals[field] = value
+            if value is None:
+                continue
+            if field not in ws._fields:
+                # Skip Odoo 18-only fields such as block_third_party_domains.
+                _logger.info(
+                    "Skipping website config field %s (not on this Odoo version)",
+                    field,
+                )
+                continue
+            vals[field] = value
 
         if not vals:
             raise UserError(_("No configuration fields to update"))
