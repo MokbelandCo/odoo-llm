@@ -18,13 +18,13 @@ class MailMessage(models.Model):
         if body:
             body = tools.html2plaintext(body)
 
-        if self.is_llm_user_message()[self]:
+        if self.is_llm_user_message():
             formatted_message = {"role": "user"}
             if body:
                 formatted_message["content"] = body
             return formatted_message
 
-        elif self.is_llm_assistant_message()[self]:
+        elif self.is_llm_assistant_message():
             formatted_message = {"role": "assistant"}
             content = tools.html2plaintext(self.body) if self.body else ""
             if content:

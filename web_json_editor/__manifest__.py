@@ -1,6 +1,6 @@
 {
     "name": "Web JSON Editor",
-    "version": "19.0.1.0.0",
+    "version": "18.0.1.0.0",
     "category": "Web",
     "summary": "JSON Editor widget for Odoo",
     "description": """

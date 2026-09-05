@@ -127,7 +127,7 @@ Related Modules
 - **``llm_assistant``** - AI assistants
 
 License
--------
+=======
 
 LGPL-3
 

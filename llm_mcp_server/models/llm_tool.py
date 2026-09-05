@@ -13,15 +13,10 @@ class LLMTool(models.Model):
 
     @api.model
     def get_mcp_tools_list(self, params=None):
-        """Handle MCP tools/list request - return MCP ListToolsResult
-
-        Returns only tools that the current user has permission to access.
-        Filtering is handled by Odoo's native Record Rules based on 'category' field.
-        """
-        # search() without sudo() respects ACL and Record Rules automatically
-        active_tools = self.search([("active", "=", True)])
-
+        """Handle MCP tools/list request - return MCP ListToolsResult"""
+        active_tools = self.sudo().search([("active", "=", True)])
         mcp_tools = []
+
         for tool in active_tools:
             # Get tool definition as dict
             tool_definition = tool.get_tool_definition()

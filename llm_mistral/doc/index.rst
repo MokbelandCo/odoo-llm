@@ -105,7 +105,7 @@ Related Modules
 - **``llm_ollama``** - Alternative: local AI
 
 License
--------
+=======
 
 LGPL-3
 

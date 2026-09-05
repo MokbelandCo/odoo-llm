@@ -109,7 +109,7 @@ Related Modules
 - **``llm_mistral``** - Alternative: Mistral AI
 
 License
--------
+=======
 
 LGPL-3
 

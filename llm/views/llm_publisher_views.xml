@@ -85,7 +85,7 @@
           name="frontier"
           domain="[('frontier', '=', True)]"
         />
-                <group name="group_by">
+                <group expand="0" string="Group By">
                     <filter
             string="Official Status"
             name="group_by_official"

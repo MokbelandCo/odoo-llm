@@ -7,20 +7,16 @@
         <field name="sequence">25</field>
     </record>
 
-    <!-- Create LLM Privilege (required in Odoo 19 - replaces direct category_id on groups) -->
-    <record id="privilege_llm" model="res.groups.privilege">
-        <field name="name">LLM Access</field>
-        <field name="description">Control access to LLM features and management</field>
-        <field name="category_id" ref="module_category_llm" />
-        <field name="sequence">10</field>
-    </record>
-
-    <!-- Update the LLM Manager group to use the new privilege_id (Odoo 19 change) -->
+    <!-- Update the LLM Manager group to use the new category -->
     <record id="group_llm_manager" model="res.groups">
         <field name="name">LLM Manager</field>
-        <field name="privilege_id" ref="privilege_llm" />
+        <field name="category_id" ref="module_category_llm" />
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
-        <field name="user_ids" eval="[(4, ref('base.user_admin'))]" />
+    </record>
+
+    <!-- Make Settings/Admin group imply LLM Manager -->
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_llm_manager'))]" />
     </record>
 
     <!-- Record Rules -->

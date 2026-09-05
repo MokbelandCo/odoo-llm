@@ -51,7 +51,7 @@ class LLMTrainingJob(models.Model):
     # Job configuration
     hyperparameters = fields.Json(
         string="Hyperparameters",
-        default=dict,
+        default={},
         help="Training hyperparameters (epochs, batch size, etc.)",
     )
 
@@ -139,9 +139,7 @@ class LLMTrainingJob(models.Model):
         )
 
         _logger.info(
-            "Training job '%s' submitted successfully. External job ID: %s",
-            self.name,
-            training_job_id,
+            f"Training job '{self.name}' submitted successfully. External job ID: {training_job_id}"
         )
 
     def action_cancel(self):

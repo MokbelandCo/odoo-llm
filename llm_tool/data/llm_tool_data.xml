@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<odoo>
+<odoo noupdate="1">
     <record id="llm_tool_odoo_record_retriever" model="llm.tool">
         <field name="name">odoo_record_retriever</field>
         <field name="implementation">odoo_record_retriever</field>
-        <field name="category">general</field>
         <field
       name="description"
     >Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned.</field>
@@ -15,7 +14,6 @@
     <record id="llm_tool_odoo_record_creator" model="llm.tool">
         <field name="name">odoo_record_creator</field>
         <field name="implementation">odoo_record_creator</field>
-        <field name="category">general</field>
         <field
       name="description"
     >Create one or multiple new records in any Odoo model. This tool allows you to insert data into the database by specifying the model name and either:
@@ -35,7 +33,6 @@ Due to its data modification capabilities, this tool requires user consent befor
     <record id="llm_tool_odoo_record_updater" model="llm.tool">
         <field name="name">odoo_record_updater</field>
         <field name="implementation">odoo_record_updater</field>
-        <field name="category">general</field>
         <field
       name="description"
     >Update existing records in any Odoo model. This tool allows you to modify data in the database by specifying the model name, domain filters to identify records, and a dictionary of field values to update. For safety, it defaults to updating only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
@@ -47,7 +44,6 @@ Due to its data modification capabilities, this tool requires user consent befor
     <record id="llm_tool_odoo_record_unlinker" model="llm.tool">
         <field name="name">odoo_record_unlinker</field>
         <field name="implementation">odoo_record_unlinker</field>
-        <field name="category">general</field>
         <field
       name="description"
     >Delete existing records from any Odoo model. This tool allows you to remove data from the database by specifying the model name and domain filters to identify records to delete. For safety, it defaults to deleting only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
@@ -59,7 +55,6 @@ Due to its data modification capabilities, this tool requires user consent befor
     <record id="llm_tool_odoo_model_method_executor" model="llm.tool">
         <field name="name">odoo_model_method_executor</field>
         <field name="implementation">odoo_model_method_executor</field>
-        <field name="category">technical</field>
         <field
       name="description"
     ><![CDATA[
@@ -77,7 +72,6 @@ Returns a JSON representation of the method's result or an error message.
     <record id="llm_tool_odoo_model_inspector" model="llm.tool">
         <field name="name">odoo_model_inspector</field>
         <field name="implementation">odoo_model_inspector</field>
-        <field name="category">general</field>
         <field
       name="description"
     ><![CDATA[

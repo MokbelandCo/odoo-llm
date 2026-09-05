@@ -193,7 +193,7 @@ Contributors
 - Crottolo <bo@fl1.cz> - Odoo 18.0 port with full tool calling and extended thinking support
 
 License
--------
+=======
 
 LGPL-3
 

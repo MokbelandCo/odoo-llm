@@ -11,11 +11,9 @@ class LLMMCPSession(models.Model):
     _name = "llm.mcp.session"
     _description = "MCP Session Management"
 
-    # Odoo 19: Use models.Constraint instead of _sql_constraints
-    _session_id_unique = models.Constraint(
-        "UNIQUE(session_id)",
-        "Session ID must be unique",
-    )
+    _sql_constraints = [
+        ("session_id_unique", "UNIQUE(session_id)", "Session ID must be unique")
+    ]
 
     # Required fields
     session_id = fields.Char(required=True, index=True, help="UUID hex format")

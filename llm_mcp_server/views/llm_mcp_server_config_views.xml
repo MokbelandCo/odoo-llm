@@ -21,7 +21,7 @@
                             <field name="latest_protocol_version" />
                             <field
                 name="supported_protocol_versions"
-                widget="text"
+                widget="json_editor"
                 help="List of additional MCP protocol versions this server supports (e.g., [&quot;2024-11-05&quot;])"
               />
                             <field
@@ -34,6 +34,10 @@
                             <field
                 name="external_url"
                 placeholder="e.g., http://host.docker.internal:8069"
+              />
+                            <field
+                name="client_name"
+                placeholder="e.g., odoo-localhost-mydb (auto-generated if empty)"
               />
                         </group>
                     </group>
