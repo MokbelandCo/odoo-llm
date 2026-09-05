@@ -23,7 +23,7 @@
         <field name="arch" type="xml">
             <list>
                 <field name="name" />
-                <field name="color" widget="color" invisible="1" />
+                <field name="color" widget="color_picker" invisible="1" />
             </list>
         </field>
     </record>

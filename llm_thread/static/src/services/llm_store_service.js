@@ -344,11 +344,8 @@ export const llmStoreService = {
 
       // Refresh threads and select specific thread
       async refreshThreadsAndSelect(threadId) {
-        // Use proper fetchData to refresh thread data
-        // Will trigger proper reload of all threads
-        await mailStore.fetchData({
-          init_messaging: {},
-        });
+        // Re-run init_messaging so the new thread lands in mail.store
+        await mailStore.fetchStoreData("init_messaging");
 
         // Wait a moment for threads to be populated
         await new Promise((resolve) => setTimeout(resolve, 100));

@@ -528,11 +528,11 @@ class LLMAssistant(models.Model):
             return self.search([])
 
         # Assistants allowed for user's groups
-        if user.groups_id:
+        if user.all_group_ids:
             domain = [
                 "|",
                 ("is_public", "=", True),
-                ("allowed_group_ids", "in", user.groups_id.ids),
+                ("allowed_group_ids", "in", user.all_group_ids.ids),
             ]
         else:
             # If user has no groups, only public assistants

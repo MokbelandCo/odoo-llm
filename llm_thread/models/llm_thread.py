@@ -644,9 +644,9 @@ class LLMThread(models.Model):
     # STORE INTEGRATION - For mail.store compatibility
     # ============================================================================
 
-    def _thread_to_store(self, store, **kwargs):
+    def _thread_to_store(self, store, fields, **kwargs):
         """Extend base _thread_to_store to include LLM-specific fields."""
-        super()._thread_to_store(store, **kwargs)
+        super()._thread_to_store(store, fields, **kwargs)
 
         # Add LLM-specific thread data
         for thread in self:
@@ -687,7 +687,7 @@ class LLMThread(models.Model):
                     for tool in thread.tool_ids
                 ]
 
-            store.add("mail.thread", thread_data)
+            store.add_model_values("mail.thread", thread_data)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_llm_thread(self):

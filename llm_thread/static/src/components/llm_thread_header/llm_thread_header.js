@@ -180,7 +180,7 @@ export class LLMThreadHeader extends Component {
       });
 
       // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["name"]);
+      await this.activeThread.fetchThreadData(["name"]);
 
       this.state.isEditingName = false;
       this.state.pendingName = "";
@@ -249,7 +249,7 @@ export class LLMThreadHeader extends Component {
       await this.orm.write("llm.thread", [this.activeThread.id], updateData);
 
       // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["provider_id", "model_id"]);
+      await this.activeThread.fetchThreadData(["provider_id", "model_id"]);
     } catch (error) {
       this.notification.add(
         _t("Could not change the AI provider. Please try again."),
@@ -281,7 +281,7 @@ export class LLMThreadHeader extends Component {
       });
 
       // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["model_id"]);
+      await this.activeThread.fetchThreadData(["model_id"]);
 
       // Clear search
       this.state.modelSearchQuery = "";
@@ -341,7 +341,7 @@ export class LLMThreadHeader extends Component {
       this.activeThread.tool_ids = newToolIds;
 
       // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["tool_ids"]);
+      await this.activeThread.fetchThreadData(["tool_ids"]);
     } catch (error) {
       this.notification.add(
         _t("Could not update the enabled tools. Please try again."),

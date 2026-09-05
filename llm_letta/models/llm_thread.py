@@ -293,7 +293,7 @@ class LLMThread(models.Model):
         max_duration = max(
             (
                 group.api_key_duration
-                for group in thread.user_id.groups_id
+                for group in thread.user_id.all_group_ids
                 if group.api_key_duration
             ),
             default=DEFAULT_API_KEY_DURATION,

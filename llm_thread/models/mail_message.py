@@ -18,7 +18,16 @@ class MailMessage(models.Model):
 
     @api.model
     def _message_fetch(
-        self, domain, search_term=None, before=None, after=None, around=None, limit=30
+        self,
+        domain,
+        *,
+        thread=None,
+        search_term=None,
+        is_notification=None,
+        before=None,
+        after=None,
+        around=None,
+        limit=30,
     ):
         """Override to filter only LLM messages for llm.thread model.
 
@@ -26,22 +35,31 @@ class MailMessage(models.Model):
         (user, assistant, tool), not system notifications or other message types
         that would clutter the AI conversation interface.
         """
-        # Check if this is for an llm.thread model
-        is_llm_thread = any(
-            condition[0] == "model"
-            and condition[1] == "="
-            and condition[2] == "llm.thread"
-            for condition in domain
-            if isinstance(condition, (list, tuple)) and len(condition) == 3
-        )
+        is_llm_thread = bool(thread) and thread._name == "llm.thread"
+        if not is_llm_thread and domain:
+            # The thread may only be identifiable through the domain itself.
+            is_llm_thread = any(
+                condition[0] == "model"
+                and condition[1] == "="
+                and condition[2] == "llm.thread"
+                for condition in domain
+                if isinstance(condition, (list, tuple)) and len(condition) == 3
+            )
 
         if is_llm_thread:
             # Add LLM role filter for LLM threads - only show messages with llm_role
-            llm_role_filter = [("llm_role", "!=", False)]
-            domain = Domain.AND([domain, llm_role_filter])
+            domain = Domain(domain or Domain.TRUE) & Domain("llm_role", "!=", False)
 
-        # Call parent method with modified domain
-        return super()._message_fetch(domain, search_term, before, after, around, limit)
+        return super()._message_fetch(
+            domain,
+            thread=thread,
+            search_term=search_term,
+            is_notification=is_notification,
+            before=before,
+            after=after,
+            around=around,
+            limit=limit,
+        )
 
     def _extras_to_store(self, store, format_reply):
         """Add LLM-specific fields to the message store."""
