@@ -152,7 +152,9 @@ export const llmStoreService = {
             );
 
             // Get the created message and add it to the thread's messages collection
-            const createdMessage = mailStore.Message.get(data.message.id);
+            const createdMessage = mailStore["mail.message"].get(
+              data.message.id
+            );
 
             // Add message to the correct thread's messages collection (not the active thread)
             const createThread = mailStore.Thread.get({

@@ -2,6 +2,7 @@
 
 import { _t } from "@web/core/l10n/translation";
 import { Composer } from "@mail/core/common/composer";
+import { registerComposerAction } from "@mail/core/common/composer_actions";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { useState } from "@odoo/owl";
@@ -54,7 +55,7 @@ patch(Composer.prototype, {
 
   async sendMessage() {
     if (this.isLLMThread && this.llmStore) {
-      const content = this.props.composer.text?.trim();
+      const content = this.props.composer.composerText?.trim();
       const attachments = this.props.composer.attachments || [];
       const attachmentIds = attachments.map((att) => att.id);
 
@@ -142,14 +143,26 @@ patch(Composer.prototype, {
   },
 
   /**
-   * Disable composer while streaming (LLM only)
+   * Disable the send button while streaming (LLM only)
    */
-  get isDisabled() {
-    if (this.isLLMThread) {
-      return this.isStreaming || !this.props.composer.text?.trim();
+  get isSendButtonDisabled() {
+    if (this.isLLMThread && this.isStreaming) {
+      return true;
     }
 
     // Use original disabled logic for regular mail
-    return super.isDisabled;
+    return super.isSendButtonDisabled;
   },
+});
+
+// The composer footer buttons are built from the composer action registry, so
+// the stop button has to be registered there on top of the sendButton template
+// override used by the extended composer.
+registerComposerAction("llm-stop-generation", {
+  btnClass: "text-danger",
+  condition: ({ owner }) => owner.showStop,
+  icon: "fa fa-stop",
+  name: _t("Stop generation"),
+  onSelected: ({ owner }) => owner.stopStreaming(),
+  sequenceQuick: 25,
 });
