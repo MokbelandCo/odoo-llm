@@ -32,7 +32,7 @@ class LLMProvider(models.Model):
         for record in self:
             if record.name and record.name.lower() in existing_names_lower:
                 raise ValidationError(
-                    _("The provider name must be unique (case-insensitive).")
+                    _("The provider name must be unique (case-insensitive)."),
                 )
 
         return True
@@ -54,7 +54,7 @@ class LLMProvider(models.Model):
         if not hasattr(record, service_method):
             raise NotImplementedError(
                 _("Method '%s' not implemented for service '%s' on target '%s'")
-                % (method, self.service, record_name)
+                % (method, self.service, record_name),
             )
 
         return getattr(record, service_method)(*args, **kwargs)
@@ -99,7 +99,8 @@ class LLMProvider(models.Model):
 
         # Normalize prepend_messages for the specific provider format
         prepend_messages = self._dispatch(
-            "normalize_prepend_messages", prepend_messages
+            "normalize_prepend_messages",
+            prepend_messages,
         )
 
         return self._dispatch(
@@ -141,7 +142,7 @@ class LLMProvider(models.Model):
         """
         if isinstance(content, str):
             return content
-        elif isinstance(content, list):
+        if isinstance(content, list):
             return "\n".join(
                 item.get("text", "")
                 for item in content
@@ -168,7 +169,11 @@ class LLMProvider(models.Model):
                 - urls_list: List of dictionaries with URL metadata
         """
         return self._dispatch(
-            "generate", input_data, model=model, stream=stream, **kwargs
+            "generate",
+            input_data,
+            model=model,
+            stream=stream,
+            **kwargs,
         )
 
     def list_models(self, model_id=None):
@@ -183,7 +188,7 @@ class LLMProvider(models.Model):
         wizard = self.env["llm.fetch.models.wizard"].create(
             {
                 "provider_id": self.id,
-            }
+            },
         )
 
         # Get existing models for comparison
@@ -234,7 +239,7 @@ class LLMProvider(models.Model):
                     "details": details,
                     "existing_model_id": existing.id if existing else False,
                     "selected": status in ["new", "modified"],
-                }
+                },
             )
 
         # Create all lines
@@ -308,7 +313,7 @@ class LLMProvider(models.Model):
             return "embedding"
 
         # Priority 2: Multimodal models (advanced capability)
-        elif any(cap in capabilities for cap in ["multimodal", "vision"]):
+        if any(cap in capabilities for cap in ["multimodal", "vision"]):
             return "multimodal"
 
         # Priority 3: Chat models (default for most LLMs)
@@ -332,7 +337,7 @@ class LLMProvider(models.Model):
 
         # Filter for default model of requested type
         default_models = models.filtered(
-            lambda m: m.default and m.model_use == model_use
+            lambda m: m.default and m.model_use == model_use,
         )
 
         if not default_models:
@@ -383,17 +388,23 @@ class LLMProvider(models.Model):
         """Format tools for the specific provider"""
         return self._dispatch("format_tools", tools)
 
-    def format_messages(self, messages, system_prompt=None):
+    def format_messages(self, messages, system_prompt=None, model=None):
         """Format messages for this provider
 
         Args:
             messages: List of messages to format for specific provider, could be mail.message record set or similar data format
             system_prompt: Optional system prompt to include at the beginning of the messages
+            model: llm.model record (to determine if multimodal)
 
         Returns:
             List of formatted messages in provider-specific format
         """
-        return self._dispatch("format_messages", messages, system_prompt=system_prompt)
+        return self._dispatch(
+            "format_messages",
+            messages,
+            system_prompt=system_prompt,
+            model=model,
+        )
 
     def _get_provider_tool_params(self, tools, kwargs):
         """Hook for provider-specific tool parameters."""

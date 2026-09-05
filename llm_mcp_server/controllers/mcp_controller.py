@@ -89,9 +89,11 @@ class MCPController(http.Controller):
             # All other methods return result directly
             result = dispatch_result
 
-        # Convert pydantic result object to dict
+        # Convert pydantic result object to dict. by_alias keeps the camelCase
+        # keys the MCP wire format expects; MCP SDK 2.0 renamed the model fields
+        # to snake_case and kept them as aliases.
         if hasattr(result, "model_dump"):
-            return result.model_dump(exclude_none=True)
+            return result.model_dump(exclude_none=True, by_alias=True)
         else:
             return result or {}
 
@@ -125,7 +127,7 @@ class MCPController(http.Controller):
     # MCP Method Handlers
     def _mcp_initialize(self, params, request_id):
         """Handle initialize method with protocol version validation"""
-        config = request.env["llm.mcp.server.config"].get_active_config()
+        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
 
         # Extract protocol version from headers or params
         requested_version = request.httprequest.headers.get(
@@ -141,7 +143,7 @@ class MCPController(http.Controller):
         )
         # For stateful mode, create new session
         if config.mode == "stateful":
-            session = request.env["llm.mcp.session"].create_new_session()
+            session = request.env["llm.mcp.session"].sudo().create_new_session()
 
             # Store client information in session
             if params.get("clientInfo"):
@@ -167,7 +169,7 @@ class MCPController(http.Controller):
 
         # Get session and transition to initialized state
         if session_id:
-            session = request.env["llm.mcp.session"].get_session(session_id)
+            session = request.env["llm.mcp.session"].sudo().get_session(session_id)
 
             if session and session.state == "initializing":
                 session.transition_to("initialized")
@@ -190,7 +192,7 @@ class MCPController(http.Controller):
 
     @requires_bearer_auth
     def _mcp_tools_list(self, params, request_id):
-        """Handle tools/list method - requires authentication for Record Rules to work"""
+        """Handle tools/list method"""
         return request.env["llm.tool"].get_mcp_tools_list(params=params)
 
     @requires_bearer_auth
@@ -228,7 +230,7 @@ class MCPController(http.Controller):
     @http.route("/mcp/health", type="http", auth="public", methods=["GET", "POST"])
     def health_check(self):
         """Health check endpoint"""
-        config = request.env["llm.mcp.server.config"].get_active_config()
+        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
         health_data = config.get_health_status_data()
 
         return http.Response(

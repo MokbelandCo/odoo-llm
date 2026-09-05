@@ -34,7 +34,6 @@ class ModelLine(models.TransientModel):
     details = fields.Json()
     existing_model_id = fields.Many2one("llm.model")
 
-    # Odoo 19: Use models.Constraint instead of _sql_constraints
     _unique_model_per_wizard = models.Constraint(
         "UNIQUE(wizard_id, name)",
         "Each model can only be listed once per import.",

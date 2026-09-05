@@ -168,16 +168,12 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
 
     def _response(self, result=None, error=None):
         """
-        Override to add MCP-specific headers to responses.
-
-        Note: Streaming/keep-alive is handled by the production HTTP server
-        (nginx/Gunicorn). The Werkzeug development server does not support
-        HTTP keep-alive, so MCP clients may not work in local development.
+        Override to add MCP-specific headers to responses
         """
         # Use parent's _response for JSON-RPC structure
         response = super()._response(result, error)
 
-        # Add MCP session header if present
+        # Add MCP headers
         if hasattr(request, "mcp_session_id"):
             response.headers[MCP_SESSION_ID_HEADER] = request.mcp_session_id
 
@@ -195,7 +191,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         if method_name and method_name.startswith("test"):
             return
 
-        config = request.env["llm.mcp.server.config"].get_active_config()
+        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
 
         # For stateless mode, no session validation needed
         if config.mode == "stateless":
@@ -206,7 +202,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             if not session_id:
                 raise MCPSessionError("Missing mcp-session-id header", http_status=400)
 
-            session = request.env["llm.mcp.session"].get_session(session_id)
+            session = request.env["llm.mcp.session"].sudo().get_session(session_id)
             if not session:
                 raise MCPSessionError("Session not found", http_status=404)
 

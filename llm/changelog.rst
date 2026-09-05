@@ -1,3 +1,19 @@
+18.0.1.7.0 (2026-01-17)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Multimodal file support for images, PDFs, and text files
+* [ADD] New is_error field for excluding error messages from LLM context
+* [ADD] New _get_attachments_by_mimetype() base method for DRY attachment handling
+* [ADD] New _get_unsupported_attachments() for file compatibility validation
+* [ADD] AUDIO/VIDEO/OFFICE_MIMETYPES constants for file type detection
+* [IMP] Refactored _get_image/pdf/text/audio_attachments() to use base method
+
+18.0.1.6.0 (2026-01-07)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [IMP] LLM Manager role now auto-implied for admin users (base.group_system)
+* [IMP] Removed manual user assignment in favor of group implication
+
 18.0.1.5.0 (2025-11-28)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

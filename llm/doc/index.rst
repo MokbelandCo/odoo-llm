@@ -162,7 +162,7 @@ Resources
 - `Architecture Overview <../OVERVIEW.md>`_
 
 License
-========
+=======
 
 This module is licensed under `LGPL-3 <https://www.gnu.org/licenses/lgpl-3.0.html>`_.
 

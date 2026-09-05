@@ -27,7 +27,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "license": "LGPL-3",
-    "depends": ["base", "llm", "llm_tool"],
+    "depends": ["base", "llm", "llm_tool", "web_json_editor"],
     "external_dependencies": {
         "python": ["mcp"],
     },
@@ -48,6 +48,7 @@
         "static/description/client_windsurf.png",
         "static/description/client_vscode.png",
         "static/description/client_codex.png",
+        "static/description/client_claude_cowork.png",
     ],
     "auto_install": False,
     "application": False,
