@@ -6,6 +6,19 @@ This repository provides a comprehensive framework for integrating Large Languag
 
 **This branch is an Odoo 17 Community port of upstream `18.0`.** Manifest versions use the `17.0.x` series. Views, chatter, and the mail OWL store follow Odoo 17 APIs (`<tree>`, `oe_chatter`, `message_format`) rather than Odoo 18 (`<list>`, `<chatter/>`, mail Store).
 
+### Odoo 17 port coverage
+
+All addons in this repository install on Odoo 17 Community except **`account_invoice_import_llm`**. That module depends on OCA `account_invoice_import`, which exists on OCA/edi **18.0** but not **17.0**.
+
+Other 17-specific shims in this branch:
+
+- Prompt categories use `_check_recursion()` (Odoo 18 `_has_cycle()`).
+- API keys use `res.users.apikeys._generate(scope, name)` (no `expiration_date`).
+- Letta adds `res.groups.api_key_duration` (present in Odoo 18 core, missing in 17).
+- `llm_pgvector` implements Odoo 17 `Field.update_db_column` instead of Odoo 18 `Field.create_column`.
+
+Optional extras for remaining providers/stores/tools: `anthropic`, `chromadb-client`, `qdrant-client`, `ollama`, `mistralai`, `letta-client`, `llama-index`, `fal-client`, `replicate`, `pgvector`, `markdownify`. Knowledge pages need OCA `document_page` (17.0); MIS tools need OCA `mis_builder` (17.0).
+
 ## 🏗️ Architecture
 
 ```mermaid
@@ -165,7 +178,7 @@ The architecture centers around five core modules that provide the foundation fo
 ## 🛠️ Installation
 
 **Requirements:**
-- Odoo 18.0+ (for 16.0 version, see `16.0` branch)
+- Odoo 17.0 Community (this branch). Upstream `18.0` targets Odoo 18.0+.
 - Python 3.11+
 - PostgreSQL 14+ (recommended for pgvector support)
 

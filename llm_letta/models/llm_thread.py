@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -11,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 # Constants
 LETTA_SERVICE = "letta"
-DEFAULT_API_KEY_DURATION = 90.0
 LETTA_AGENT_KEY_PREFIX = "Letta Agent - Thread"
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
@@ -290,24 +288,14 @@ class LLMThread(models.Model):
             return existing_key
 
         # Generate new API key with scope 'rpc'
-        max_duration = max(
-            (
-                group.api_key_duration
-                for group in thread.user_id.groups_id
-                if group.api_key_duration
-            ),
-            default=DEFAULT_API_KEY_DURATION,
-        )
-
-        expiration_date = datetime.now() + timedelta(days=max_duration)
         api_key_name = self._get_api_key_name(thread.id)
 
-        # Generate API key programmatically
+        # Odoo 17 res.users.apikeys._generate(scope, name) has no expiration_date.
         api_key = (
             self.env["res.users.apikeys"]
             .sudo()
             .with_user(thread.user_id)
-            ._generate(scope="rpc", name=api_key_name, expiration_date=expiration_date)
+            ._generate("rpc", api_key_name)
         )
 
         # Find the created API key record to get its ID

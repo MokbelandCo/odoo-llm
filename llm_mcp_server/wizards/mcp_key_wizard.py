@@ -19,9 +19,8 @@ class APIKeyDescriptionMCP(models.TransientModel):
         self.check_access_make_key()
 
         description = self.sudo()
-        k = self.env["res.users.apikeys"]._generate(
-            None, description.name, self.expiration_date
-        )
+        # Odoo 17 res.users.apikeys._generate(scope, name) has no expiration_date.
+        k = self.env["res.users.apikeys"]._generate(None, description.name)
         description.unlink()
 
         # Get MCP config and generate client configs with actual API key

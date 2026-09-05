@@ -4,8 +4,9 @@ import numpy as np
 from pgvector import Vector
 from pgvector.psycopg2 import register_vector
 
-from odoo import fields, tools
-from odoo.tools.misc import SENTINEL, Sentinel
+from odoo import fields
+from odoo.fields import Default
+from odoo.tools import sql
 
 _logger = logging.getLogger(__name__)
 
@@ -21,14 +22,9 @@ class PgVector(fields.Field):
 
     type = "pgvector"
     column_type = ("vector", "vector")
+    dimension = None
 
-    _slots = {
-        "dimension": None,  # Vector dimensions
-    }
-
-    def __init__(
-        self, string: str | Sentinel = SENTINEL, dimension: int | None = None, **kwargs
-    ):
+    def __init__(self, string=Default, dimension=Default, **kwargs):
         super().__init__(string=string, dimension=dimension, **kwargs)
 
     def convert_to_column(self, value, record, values=None, validate=True):
@@ -36,12 +32,10 @@ class PgVector(fields.Field):
         if value is None:
             return None
 
-        # Ensure the value is properly formatted for pgvector
         try:
-            # Use Vector._to_db method from pgvector
             return Vector._to_db(value, self.dimension)
         except (ValueError, TypeError) as e:
-            _logger.warning(f"Error converting vector: {e}. Returning NULL.")
+            _logger.warning("Error converting vector: %s. Returning NULL.", e)
             return None
 
     def convert_to_cache(self, value, record, validate=True):
@@ -49,30 +43,27 @@ class PgVector(fields.Field):
         if value is None:
             return None
 
-        # Handle case where value is already a list or numpy array
-        if isinstance(value, list) or isinstance(value, np.ndarray):
+        if isinstance(value, (list, np.ndarray)):
             return value
 
-        # Safely convert from database format
         try:
-            # Use Vector._from_db method from pgvector for string values
             return Vector._from_db(value)
         except (ValueError, TypeError) as e:
-            _logger.warning(f"Error converting vector from DB: {e}. Returning None.")
+            _logger.warning("Error converting vector from DB: %s. Returning None.", e)
             return None
 
-    def create_column(self, cr, table, column, **kwargs):
-        """Create a vector column in the database."""
-        # Register vector with this cursor
-        register_vector(cr)
-
-        # Specify dimensions if provided
+    def update_db_column(self, model, column):
+        """Create or update a PostgreSQL vector column (Odoo 17 has no Field.create_column)."""
+        register_vector(model._cr._cnx)
         dim_spec = f"({self.dimension})" if self.dimension else ""
-
-        # Create the column with appropriate vector dimensions
-        cr.execute(f"""
-            ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} vector{dim_spec}
-        """)
-
-        # Update the column format to match the dimensions
-        tools.set_column_type(cr, table, column, f"vector{dim_spec}")
+        coltype = f"vector{dim_spec}"
+        if not column:
+            sql.create_column(
+                model._cr, model._table, self.name, coltype, self.string
+            )
+            return
+        if column["udt_name"] == "vector":
+            return
+        if column["is_nullable"] == "NO":
+            sql.drop_not_null(model._cr, model._table, self.name)
+        sql.convert_column(model._cr, model._table, self.name, coltype)

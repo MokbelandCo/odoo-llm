@@ -26,7 +26,7 @@ class LLMPromptCategory(models.Model):
         index=True,
         ondelete="cascade",
     )
-    parent_path = fields.Char(index=True)
+    parent_path = fields.Char(index=True, unaccent=False)
     child_ids = fields.One2many(
         "llm.prompt.category",
         "parent_id",
@@ -75,7 +75,9 @@ class LLMPromptCategory(models.Model):
 
     @api.constrains("parent_id")
     def _check_category_recursion(self):
-        if self._has_cycle():
+        # Odoo 17: _check_recursion() returns True when there is no cycle.
+        # Odoo 18 renamed this to _has_cycle() with inverted meaning.
+        if not self._check_recursion():
             raise models.ValidationError(
                 _("Error! You cannot create recursive categories.")
             )
