@@ -102,18 +102,29 @@ class LLMTool(models.Model):
         "Set to false to manually manage this tool's configuration.",
     )
 
-    _sql_constraints = [
-        (
-            "unique_function_tool",
-            "UNIQUE(decorator_model, decorator_method)",
-            "A tool for this model and method combination already exists!",
-        ),
-        (
-            "unique_tool_name",
-            "UNIQUE(name)",
-            "A tool with this name already exists! Tool names must be unique.",
-        ),
-    ]
+    # Tool category, used by the record rules in security/llm_tool_rules.xml to
+    # decide which tools a user may see. Bridge modules add their own values
+    # with ``selection_add``.
+    category = fields.Selection(
+        [
+            ("general", "General"),
+            ("technical", "Technical"),
+        ],
+        string="Tool Category",
+        default="general",
+        help="Category determines which user groups can access this tool via "
+        "Odoo Record Rules. Third-party modules should use `selection_add` to "
+        "register additional categories.",
+    )
+
+    _unique_function_tool = models.Constraint(
+        "UNIQUE(decorator_model, decorator_method)",
+        "A tool for this model and method combination already exists!",
+    )
+    _unique_tool_name = models.Constraint(
+        "UNIQUE(name)",
+        "A tool with this name already exists! Tool names must be unique.",
+    )
 
     @api.model
     def _selection_implementation(self):

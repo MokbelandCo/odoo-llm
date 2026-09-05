@@ -11,7 +11,7 @@
         - Create RAG resources from document pages
     """,
     "category": "Knowledge",
-    "version": "18.0.1.0.0",
+    "version": "19.0.1.0.0",
     "depends": ["document_page", "llm_knowledge"],
     "external_dependencies": {
         "python": ["markdownify"],

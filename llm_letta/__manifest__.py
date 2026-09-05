@@ -16,7 +16,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "18.0.1.0.4",
+    "version": "19.0.1.0.0",
     "depends": ["llm", "llm_thread", "llm_assistant", "llm_mcp_server"],
     "external_dependencies": {
         "python": ["letta-client"],

@@ -34,13 +34,10 @@ class ModelLine(models.TransientModel):
     details = fields.Json()
     existing_model_id = fields.Many2one("llm.model")
 
-    _sql_constraints = [
-        (
-            "unique_model_per_wizard",
-            "UNIQUE(wizard_id, name)",
-            "Each model can only be listed once per import.",
-        )
-    ]
+    _unique_model_per_wizard = models.Constraint(
+        "UNIQUE(wizard_id, name)",
+        "Each model can only be listed once per import.",
+    )
 
     @api.model
     def _get_available_model_usages(self):

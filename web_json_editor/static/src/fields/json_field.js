@@ -191,10 +191,14 @@ JsonEditorField.template = "web_json_editor.JsonEditorField";
 JsonEditorField.props = {
   ...standardFieldProps,
   readonly: { type: Boolean, optional: true },
+  nodeOptions: { type: Object, optional: true },
 };
 
-// Register the field widget (Odoo 18.0 format)
+// Register the field widget.
 registry.category("fields").add("json_editor", {
   component: JsonEditorField,
-  supportedTypes: ["text", "char", "json"],
+  supportedTypes: ["text", "char", "json", "jsonb"],
+  extractProps: ({ options }) => ({
+    nodeOptions: options,
+  }),
 });

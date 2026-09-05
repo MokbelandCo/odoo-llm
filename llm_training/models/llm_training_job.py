@@ -51,7 +51,7 @@ class LLMTrainingJob(models.Model):
     # Job configuration
     hyperparameters = fields.Json(
         string="Hyperparameters",
-        default={},
+        default=dict,
         help="Training hyperparameters (epochs, batch size, etc.)",
     )
 

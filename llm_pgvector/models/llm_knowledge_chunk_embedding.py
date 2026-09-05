@@ -47,25 +47,23 @@ class LLMKnowledgeChunkEmbedding(models.Model):
         index=True,
     )
 
-    _sql_constraints = [
-        (
-            "unique_chunk_embedding_model",
-            "UNIQUE(chunk_id, embedding_model_id)",
-            "A chunk can only have one embedding per embedding model",
-        ),
-    ]
+    _unique_chunk_embedding_model = models.Constraint(
+        "UNIQUE(chunk_id, embedding_model_id)",
+        "A chunk can only have one embedding per embedding model",
+    )
 
     @api.model
     def _valid_field_parameter(self, field, name):
         return name == "dimension" or super()._valid_field_parameter(field, name)
 
-    def name_get(self):
+    @api.depends("chunk_id.name", "embedding_model_id.name")
+    def _compute_display_name(self):
         """Override to provide a better display name"""
-        result = []
         for record in self:
-            name = f"{record.chunk_id.name or 'Chunk'} [{record.embedding_model_id.name or 'Model'}]"
-            result.append((record.id, name))
-        return result
+            record.display_name = (
+                f"{record.chunk_id.name or 'Chunk'} "
+                f"[{record.embedding_model_id.name or 'Model'}]"
+            )
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -214,7 +214,7 @@
           domain="[('create_date', '>=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"
         />
 
-                    <group expand="0" string="Group By">
+                    <group name="group_by">
                         <filter
             string="State"
             name="group_by_state"

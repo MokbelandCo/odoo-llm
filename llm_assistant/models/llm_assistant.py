@@ -75,7 +75,6 @@ class LLMAssistant(models.Model):
         ondelete="restrict",
         tracking=True,
         required=True,
-        auto_join=True,
         help="Prompt template to use for generating system prompts",
     )
 
@@ -162,9 +161,10 @@ class LLMAssistant(models.Model):
         help="Format of the template (text, yaml, json)",
     )
 
-    _sql_constraints = [
-        ("unique_code", "UNIQUE(code)", "Assistant code must be unique."),
-    ]
+    _unique_code = models.Constraint(
+        "UNIQUE(code)",
+        "Assistant code must be unique.",
+    )
 
     @api.depends("prompt_id", "default_values")
     def _compute_system_prompt_preview(self):

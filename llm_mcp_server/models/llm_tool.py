@@ -13,8 +13,13 @@ class LLMTool(models.Model):
 
     @api.model
     def get_mcp_tools_list(self, params=None):
-        """Handle MCP tools/list request - return MCP ListToolsResult"""
-        active_tools = self.sudo().search([("active", "=", True)])
+        """Handle MCP tools/list request - return MCP ListToolsResult
+
+        The search runs without sudo() so that the record rules defined on the
+        ``category`` field decide which tools the bearer-authenticated user
+        is allowed to see.
+        """
+        active_tools = self.search([("active", "=", True)])
         mcp_tools = []
 
         for tool in active_tools:

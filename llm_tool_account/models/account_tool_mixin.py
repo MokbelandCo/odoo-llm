@@ -5,7 +5,7 @@ from datetime import date
 
 from odoo import _, models
 from odoo.exceptions import UserError
-from odoo.osv import expression
+from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
@@ -97,17 +97,17 @@ class AccountToolMixin(models.AbstractModel):
         # Check type shortcuts first
         shortcut = identifier.lower()
         if shortcut in ACCOUNT_TYPE_SHORTCUTS:
-            return Account.search(expression.AND([base_domain, ACCOUNT_TYPE_SHORTCUTS[shortcut]]))
+            return Account.search(Domain.AND([base_domain, ACCOUNT_TYPE_SHORTCUTS[shortcut]]))
 
         # Code pattern (exact or LIKE)
         if "%" in identifier:
-            accounts = Account.search(expression.AND([base_domain, [("code", "=like", identifier)]]))
+            accounts = Account.search(Domain.AND([base_domain, [("code", "=like", identifier)]]))
         else:
-            accounts = Account.search(expression.AND([base_domain, [("code", "=", identifier)]]))
+            accounts = Account.search(Domain.AND([base_domain, [("code", "=", identifier)]]))
 
         if not accounts:
             # Try name search as fallback
-            accounts = Account.search(expression.AND([base_domain,[("name", "ilike", identifier)]]))
+            accounts = Account.search(Domain.AND([base_domain,[("name", "ilike", identifier)]]))
 
         if not accounts:
             raise UserError(_("No accounts found matching '%s'") % identifier)

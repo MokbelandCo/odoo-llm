@@ -11,9 +11,10 @@ class LLMMCPSession(models.Model):
     _name = "llm.mcp.session"
     _description = "MCP Session Management"
 
-    _sql_constraints = [
-        ("session_id_unique", "UNIQUE(session_id)", "Session ID must be unique")
-    ]
+    _session_id_unique = models.Constraint(
+        "UNIQUE(session_id)",
+        "Session ID must be unique",
+    )
 
     # Required fields
     session_id = fields.Char(required=True, index=True, help="UUID hex format")
