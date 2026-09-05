@@ -16,6 +16,7 @@ Other 17-specific shims in this branch:
 - API keys use `res.users.apikeys._generate(scope, name)` (no `expiration_date`).
 - Letta adds `res.groups.api_key_duration` (present in Odoo 18 core, missing in 17).
 - `llm_pgvector` implements Odoo 17 `Field.update_db_column` instead of Odoo 18 `Field.create_column`.
+- Website config tools skip `website.block_third_party_domains` (Odoo 18-only).
 
 Optional extras for remaining providers/stores/tools: `anthropic`, `chromadb-client`, `qdrant-client`, `ollama`, `mistralai`, `letta-client`, `llama-index`, `fal-client`, `replicate`, `pgvector`, `markdownify`. Knowledge pages need OCA `document_page` (17.0); MIS tools need OCA `mis_builder` (17.0).
 
