@@ -95,7 +95,8 @@ class TestPaymentTools(TransactionCase):
 
         self.assertIn("payment_id", result)
         self.assertEqual(result["amount"], 500.0)
-        self.assertEqual(result["state"], "posted")
+        # A posted payment sits in 'in_process' until it is reconciled.
+        self.assertIn(result["state"], ("in_process", "paid"))
 
     def test_register_payment_missing_params(self):
         """Test that missing required params raises error"""

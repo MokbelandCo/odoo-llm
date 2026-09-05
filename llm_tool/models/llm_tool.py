@@ -549,8 +549,10 @@ class LLMTool(models.Model):
             annotations=tool_annotations,
         )
 
-        # Return plain dict following 'Models Return Plain Data' pattern
-        return mcp_tool.model_dump(exclude_none=True)
+        # Return plain dict following 'Models Return Plain Data' pattern.
+        # by_alias keeps the camelCase keys the MCP wire format expects; MCP SDK
+        # 2.0 renamed the model fields to snake_case and kept them as aliases.
+        return mcp_tool.model_dump(exclude_none=True, by_alias=True)
 
     @api.onchange("implementation")
     def _onchange_implementation(self):

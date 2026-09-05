@@ -109,7 +109,7 @@ class AccountPayment(models.Model):
             if journal:
                 payment_vals["journal_id"] = self._resolve_journal(journal).id
             if memo:
-                payment_vals["ref"] = memo
+                payment_vals["memo"] = memo
 
             payment = self.env["account.payment"].create(payment_vals)
             payment.action_post()

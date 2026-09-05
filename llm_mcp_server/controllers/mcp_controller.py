@@ -89,9 +89,11 @@ class MCPController(http.Controller):
             # All other methods return result directly
             result = dispatch_result
 
-        # Convert pydantic result object to dict
+        # Convert pydantic result object to dict. by_alias keeps the camelCase
+        # keys the MCP wire format expects; MCP SDK 2.0 renamed the model fields
+        # to snake_case and kept them as aliases.
         if hasattr(result, "model_dump"):
-            return result.model_dump(exclude_none=True)
+            return result.model_dump(exclude_none=True, by_alias=True)
         else:
             return result or {}
 
