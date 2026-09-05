@@ -20,6 +20,7 @@ export class LLMChatClientAction extends Component {
     this.mailStore = useState(useService("mail.store"));
     this.orm = useService("orm");
     this.notification = useService("notification");
+    this.action = useService("action");
 
     onWillStart(() => {
       return this.initializeLLMChat(this.props);
@@ -37,10 +38,7 @@ export class LLMChatClientAction extends Component {
    */
   async initializeLLMChat(props) {
     try {
-      // Wait for both mailStore and llmStore to be ready
-      // mailStore.isReady ensures threads are loaded via init_messaging
-      // llmStore.isReady ensures providers, models, tools are loaded
-      await Promise.all([this.mailStore.isReady, this.llmStore.isReady]);
+      await this.llmStore.isReady;
 
       const activeId = this.getActiveId(props);
 

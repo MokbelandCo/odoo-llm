@@ -179,8 +179,7 @@ export class LLMThreadHeader extends Component {
         name: this.state.pendingName.trim(),
       });
 
-      // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["name"]);
+      await this.llmStore.refreshThreadRecord(this.activeThread, ["name"]);
 
       this.state.isEditingName = false;
       this.state.pendingName = "";
@@ -248,8 +247,10 @@ export class LLMThreadHeader extends Component {
       // Update via ORM
       await this.orm.write("llm.thread", [this.activeThread.id], updateData);
 
-      // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["provider_id", "model_id"]);
+      await this.llmStore.refreshThreadRecord(this.activeThread, [
+        "provider_id",
+        "model_id",
+      ]);
     } catch (error) {
       this.notification.add(
         _t("Could not change the AI provider. Please try again."),
@@ -280,8 +281,7 @@ export class LLMThreadHeader extends Component {
         model_id: model.id,
       });
 
-      // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["model_id"]);
+      await this.llmStore.refreshThreadRecord(this.activeThread, ["model_id"]);
 
       // Clear search
       this.state.modelSearchQuery = "";
@@ -340,8 +340,7 @@ export class LLMThreadHeader extends Component {
       // Immediately update local state to ensure UI reflects change
       this.activeThread.tool_ids = newToolIds;
 
-      // Reload thread data using proper fetchData pattern
-      await this.activeThread.fetchData(["tool_ids"]);
+      await this.llmStore.refreshThreadRecord(this.activeThread, ["tool_ids"]);
     } catch (error) {
       this.notification.add(
         _t("Could not update the enabled tools. Please try again."),

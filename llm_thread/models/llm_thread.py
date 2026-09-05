@@ -645,50 +645,36 @@ class LLMThread(models.Model):
     # STORE INTEGRATION - For mail.store compatibility
     # ============================================================================
 
-    def _thread_to_store(self, store, **kwargs):
-        """Extend base _thread_to_store to include LLM-specific fields."""
-        super()._thread_to_store(store, **kwargs)
-
-        # Add LLM-specific thread data
-        for thread in self:
-            # Build the data dict with only the fields we need
-            thread_data = {
-                "id": thread.id,
-                "model": "llm.thread",
-                "name": thread.name,  # Essential for UI display
-                "write_date": thread.write_date,  # For sorting in thread list
-                "channel_type": "llm_chat",  # Custom type for LLM threads
+    def _llm_thread_format(self):
+        """Format llm.thread records for the Odoo 17 mail JS store."""
+        self.ensure_one()
+        data = {
+            "id": self.id,
+            "model": "llm.thread",
+            "name": self.name,
+            "write_date": self.write_date,
+            "type": "llm_chat",
+            "res_model": self.model or False,
+            "res_id": self.res_id or False,
+            "provider_id": False,
+            "model_id": False,
+            "tool_ids": [],
+        }
+        if self.provider_id:
+            data["provider_id"] = {
+                "id": self.provider_id.id,
+                "name": self.provider_id.name,
             }
-
-            # Related record fields (for linking threads to Odoo records)
-            # Use res_model to avoid conflict with "model": "llm.thread"
-            if thread.model:
-                thread_data["res_model"] = thread.model
-            if thread.res_id:
-                thread_data["res_id"] = thread.res_id
-
-            # Add LLM-specific fields using proper Store.one/Store.many format
-            if thread.provider_id:
-                thread_data["provider_id"] = {
-                    "id": thread.provider_id.id,
-                    "name": thread.provider_id.name,
-                    "model": "llm.provider",
-                }
-
-            if thread.model_id:
-                thread_data["model_id"] = {
-                    "id": thread.model_id.id,
-                    "name": thread.model_id.name,
-                    "model": "llm.model",
-                }
-
-            if thread.tool_ids:
-                thread_data["tool_ids"] = [
-                    {"id": tool.id, "name": tool.name, "model": "llm.tool"}
-                    for tool in thread.tool_ids
-                ]
-
-            store.add("mail.thread", thread_data)
+        if self.model_id:
+            data["model_id"] = {
+                "id": self.model_id.id,
+                "name": self.model_id.name,
+            }
+        if self.tool_ids:
+            data["tool_ids"] = [
+                {"id": tool.id, "name": tool.name} for tool in self.tool_ids
+            ]
+        return data
 
     @api.ondelete(at_uninstall=False)
     def _unlink_llm_thread(self):

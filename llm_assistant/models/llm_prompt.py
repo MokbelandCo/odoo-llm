@@ -140,10 +140,18 @@ class LLMPrompt(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         prompts = super().create(vals_list)
+        to_sync = self.browse()
+        for prompt, vals in zip(prompts, vals_list):
+            if not vals.get("arguments_json"):
+                to_sync |= prompt
+        if to_sync:
+            to_sync._ensure_arguments_sync()
         return prompts
 
     def write(self, vals):
         result = super().write(vals)
+        if "template" in vals:
+            self._ensure_arguments_sync()
         return result
 
     def copy(self, default=None):

@@ -1,6 +1,6 @@
 {
     "name": "LLM Tool",
-    "version": "18.0.4.1.2",
+    "version": "17.0.4.1.2",
     "category": "Technical",
     "summary": "Function calling and tool execution for LLM models to interact with Odoo",
     "description": """
@@ -27,7 +27,7 @@
     "license": "LGPL-3",
     "depends": ["base", "mail", "llm"],
     "external_dependencies": {
-        "python": ["pydantic>=2.0.0", "mcp"],
+        "python": ["pydantic>=2.0.0", "mcp<2"],
     },
     "data": [
         "security/ir.model.access.csv",

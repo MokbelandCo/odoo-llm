@@ -4,6 +4,8 @@
 
 This repository provides a comprehensive framework for integrating Large Language Models (LLMs) into Odoo. It allows seamless interaction with various AI providers including OpenAI, Anthropic, Ollama, and Replicate, enabling chat completions, text embeddings, and more within your Odoo environment.
 
+**This branch is an Odoo 17 Community port of upstream `18.0`.** Manifest versions use the `17.0.x` series. Views, chatter, and the mail OWL store follow Odoo 17 APIs (`<tree>`, `oe_chatter`, `message_format`) rather than Odoo 18 (`<list>`, `<chatter/>`, mail Store).
+
 ## 🏗️ Architecture
 
 ```mermaid

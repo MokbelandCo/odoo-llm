@@ -75,7 +75,7 @@ class TestLLMToolCore(LLMToolCase):
         """Test execute() raises NotImplementedError for missing {implementation}_execute method"""
 
         # Patch _get_available_implementations to allow a dummy implementation
-        def patched_implementations():
+        def patched_implementations(*_args, **_kwargs):
             return [
                 ("function", "Function"),
                 ("dummy_implementation", "Dummy"),

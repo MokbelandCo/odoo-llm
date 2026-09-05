@@ -56,17 +56,20 @@
                 name="model_ids"
                 context="{'active_test': False}"
               >
-                                <list editable="bottom">
+                                <tree editable="bottom">
                                     <field name="name" />
                                     <field name="model_use" />
                                     <field name="default" />
                                     <field name="active" />
-                                </list>
+                                </tree>
                             </field>
                         </page>
                     </notebook>
                 </sheet>
-                <chatter />
+            <div class="oe_chatter">
+                <field name="message_follower_ids"/>
+                <field name="message_ids"/>
+            </div>
             </form>
         </field>
     </record>
@@ -75,7 +78,7 @@
     <record id="llm_provider_action" model="ir.actions.act_window">
         <field name="name">LLM Providers</field>
         <field name="res_model">llm.provider</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">tree,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first LLM provider!

@@ -64,7 +64,7 @@ class LLMKnowledgeChunker(models.Model):
         self.ensure_one()
         return {
             "name": _("Resource Chunks"),
-            "view_mode": "list,form",
+            "view_mode": "tree,form",
             "res_model": "llm.knowledge.chunk",
             "domain": [("resource_id", "=", self.id)],
             "type": "ir.actions.act_window",
@@ -238,6 +238,6 @@ class LLMKnowledgeChunker(models.Model):
             "type": "ir.actions.act_window",
             "res_model": self._name,
             "res_id": self.id if len(self) == 1 else False,
-            "view_mode": "form" if len(self) == 1 else "list,form",
+            "view_mode": "form" if len(self) == 1 else "tree,form",
             "target": "current",
         }

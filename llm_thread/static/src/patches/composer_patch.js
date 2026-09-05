@@ -54,7 +54,7 @@ patch(Composer.prototype, {
 
   async sendMessage() {
     if (this.isLLMThread && this.llmStore) {
-      const content = this.props.composer.text?.trim();
+      const content = this.props.composer.textInputContent?.trim();
       const attachments = this.props.composer.attachments || [];
       const attachmentIds = attachments.map((att) => att.id);
 
@@ -64,7 +64,7 @@ patch(Composer.prototype, {
 
       const threadId = this.props.composer.thread.id;
 
-      this.props.composer.clear();
+      this.clear();
 
       await this.llmStore.sendLLMMessage(threadId, content, attachmentIds);
       return;
@@ -129,27 +129,13 @@ patch(Composer.prototype, {
   },
 
   /**
-   * Hide composer avatar/sidebar for LLM threads
-   * This removes the empty 42px column on the left
+   * Disable send while streaming (LLM only).
+   * Odoo 17 Composer uses isSendButtonDisabled rather than isDisabled.
    */
-  get showComposerAvatar() {
+  get isSendButtonDisabled() {
     if (this.isLLMThread) {
-      return false;
+      return this.isStreaming || !this.props.composer.textInputContent?.trim();
     }
-
-    // Use original logic for regular mail
-    return super.showComposerAvatar;
-  },
-
-  /**
-   * Disable composer while streaming (LLM only)
-   */
-  get isDisabled() {
-    if (this.isLLMThread) {
-      return this.isStreaming || !this.props.composer.text?.trim();
-    }
-
-    // Use original disabled logic for regular mail
-    return super.isDisabled;
+    return super.isSendButtonDisabled;
   },
 });

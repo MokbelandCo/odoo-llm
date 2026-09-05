@@ -14,11 +14,15 @@ class TestThreadSchema(TransactionCase):
         self.provider_model = self.env["llm.provider"]
         self.model_model = self.env["llm.model"]
 
-        # Create a test provider
+        # Create a test provider using a registered service (Odoo Selection
+        # rejects unknown values such as "test").
+        services = self.provider_model._selection_service()
+        if not services:
+            self.skipTest("No LLM provider services are registered")
         self.test_provider = self.provider_model.create(
             {
                 "name": "Test Provider",
-                "service": "test",
+                "service": services[0][0],
             }
         )
 
@@ -29,7 +33,7 @@ class TestThreadSchema(TransactionCase):
             {
                 "name": "test-model",
                 "provider_id": self.test_provider.id,
-                "model_use": "text",
+                "model_use": "chat",
                 "details": {
                     "input_schema": {
                         "type": "object",

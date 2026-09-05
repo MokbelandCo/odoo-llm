@@ -227,16 +227,33 @@ class MailMessage(models.Model):
         """
         return {message: message.llm_role == role for message in self}
 
+    def _get_message_format_fields(self):
+        fields_list = super()._get_message_format_fields()
+        for extra in ("llm_role", "body_json"):
+            if extra not in fields_list:
+                fields_list.append(extra)
+        return fields_list
+
+    def message_format(self, format_reply=True, msg_vals=None):
+        """Include LLM fields and note styling for the Odoo 17 mail store."""
+        vals_list = super().message_format(
+            format_reply=format_reply, msg_vals=msg_vals
+        )
+        messages_by_id = {message.id: message for message in self}
+        for vals in vals_list:
+            message = messages_by_id.get(vals.get("id"))
+            if not message:
+                continue
+            vals["llm_role"] = message.llm_role
+            vals["body_json"] = message.body_json
+            if message.llm_role:
+                vals["is_note"] = True
+        return vals_list
+
     def to_store_format(self):
-        """Convert message to store format compatible with Odoo 18.0. Used by frontend js components"""
+        """Serialize a message for the Odoo 17 mail JS store / EventSource stream."""
         self.ensure_one()
-        from odoo.addons.mail.tools.discuss import Store
-
-        store = Store()
-        self._to_store(store)
-        result = store.get_result()
-
-        return result["mail.message"][0]
+        return self.message_format()[0]
 
     def _get_attachments_by_mimetype(self, mimetypes):
         """Get attachments filtered by mimetype.

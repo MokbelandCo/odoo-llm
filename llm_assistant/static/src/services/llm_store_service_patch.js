@@ -2,7 +2,6 @@
 
 import { llmStoreService } from "@llm_thread/services/llm_store_service";
 import { patch } from "@web/core/utils/patch";
-import { rpc } from "@web/core/network/rpc";
 
 /**
  * Minimal patch to add assistant functionality to existing LLM store
@@ -12,6 +11,7 @@ patch(llmStoreService, {
   start(env, services) {
     const llmStore = super.start(env, services);
     const { orm, notification } = services;
+    const rpc = env.services.rpc;
 
     // Store the original getDataLoaders method
     const originalGetDataLoaders = llmStore.getDataLoaders.bind(llmStore);
@@ -77,8 +77,7 @@ patch(llmStoreService, {
             return;
           }
 
-          // Reuse existing fetchData pattern to refresh thread data
-          await activeThread.fetchData([
+          await this.refreshThreadRecord(activeThread, [
             "assistant_id",
             "provider_id",
             "model_id",

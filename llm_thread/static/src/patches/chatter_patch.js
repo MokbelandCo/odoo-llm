@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { Chatter } from "@mail/core/web/chatter";
 import { LLMChatContainer } from "@llm_thread/components/llm_chat_container/llm_chat_container";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
@@ -82,8 +82,7 @@ patch(Chatter.prototype, {
     }
     this.store.discuss.thread = llmThread;
 
-    // Fetch thread data
-    await llmThread.fetchData(["messages"]);
+    await this.threadService.fetchNewMessages(llmThread);
 
     // Open AI chat mode
     this.state.isChattingWithLLM = true;
@@ -174,8 +173,7 @@ patch(Chatter.prototype, {
           }
           this.store.discuss.thread = llmThread;
 
-          // Fetch thread data
-          await llmThread.fetchData(["messages"]);
+          await this.threadService.fetchNewMessages(llmThread);
 
           this.state.isChattingWithLLM = true;
           this.state.llmThreadId = threadId;

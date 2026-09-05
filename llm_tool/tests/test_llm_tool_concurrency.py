@@ -32,7 +32,7 @@ class TestLLMToolSync(common.TransactionCase):
     # -- _sync_tools_to_db (raw SQL) --
 
     def test_sync_creates_new_tool(self):
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "new_method"): {
                 "name": "new_tool",
                 "implementation": "function",
@@ -42,7 +42,7 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
 
         result = self.LLMTool._sync_tools_to_db()
 
@@ -54,7 +54,7 @@ class TestLLMToolSync(common.TransactionCase):
     def test_sync_updates_changed_tool(self):
         self._create_tool("upd_tool", method="upd_method", description="Old")
 
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "upd_method"): {
                 "name": "upd_tool",
                 "implementation": "function",
@@ -64,7 +64,7 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -76,7 +76,7 @@ class TestLLMToolSync(common.TransactionCase):
     def test_sync_noop_when_unchanged(self):
         self._create_tool("same_tool", method="same_method", description="Same")
 
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "same_method"): {
                 "name": "same_tool",
                 "implementation": "function",
@@ -86,7 +86,7 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -97,8 +97,19 @@ class TestLLMToolSync(common.TransactionCase):
 
     def test_sync_deactivates_missing_tool(self):
         tool = self._create_tool("orphan", method="orphan_method")
-        self.LLMTool._tool_registry = {}
-        self.LLMTool._xml_managed_keys = set()
+        # Empty registry is a safety no-op; keep another tool registered so
+        # the orphan is treated as missing.
+        type(self.LLMTool)._tool_registry = {
+            ("res.partner", "kept_method"): {
+                "name": "kept_tool",
+                "implementation": "function",
+                "decorator_model": "res.partner",
+                "decorator_method": "kept_method",
+                "description": "Kept",
+                "active": True,
+            }
+        }
+        type(self.LLMTool)._xml_managed_keys = set()
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -109,8 +120,8 @@ class TestLLMToolSync(common.TransactionCase):
 
     def test_sync_skips_xml_managed_deactivation(self):
         tool = self._create_tool("xml_tool", method="xml_method")
-        self.LLMTool._tool_registry = {}
-        self.LLMTool._xml_managed_keys = {("res.partner", "xml_method")}
+        type(self.LLMTool)._tool_registry = {}
+        type(self.LLMTool)._xml_managed_keys = {("res.partner", "xml_method")}
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -126,7 +137,7 @@ class TestLLMToolSync(common.TransactionCase):
             description="Manual",
             auto_update=False,
         )
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "locked_method"): {
                 "name": "locked_tool",
                 "implementation": "function",
@@ -136,7 +147,7 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool._sync_tools_to_db()
@@ -148,13 +159,13 @@ class TestLLMToolSync(common.TransactionCase):
     # -- action_sync_tools (button) --
 
     def test_action_empty_registry(self):
-        self.LLMTool._tool_registry = {}
+        type(self.LLMTool)._tool_registry = {}
         result = self.LLMTool.action_sync_tools()
         self.assertEqual(result["params"]["type"], "warning")
 
     def test_action_already_in_sync(self):
         self._create_tool("btn_tool", method="btn_method", description="OK")
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "btn_method"): {
                 "name": "btn_tool",
                 "implementation": "function",
@@ -164,14 +175,14 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
         self.LLMTool.invalidate_model()
 
         result = self.LLMTool.action_sync_tools()
         self.assertIn("Already in sync", result["params"]["title"])
 
     def test_action_reports_changes(self):
-        self.LLMTool._tool_registry = {
+        type(self.LLMTool)._tool_registry = {
             ("res.partner", "action_new"): {
                 "name": "action_new_tool",
                 "implementation": "function",
@@ -181,7 +192,7 @@ class TestLLMToolSync(common.TransactionCase):
                 "active": True,
             }
         }
-        self.LLMTool._xml_managed_keys = set()
+        type(self.LLMTool)._xml_managed_keys = set()
 
         result = self.LLMTool.action_sync_tools()
         self.assertEqual(result["params"]["type"], "success")

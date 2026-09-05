@@ -76,33 +76,22 @@ patch(Message.prototype, {
 
 /**
  * PATCH 3: Message Model (Data Layer)
- * Patches the Message data model to handle LLM-specific isEmpty computation
- * This ensures LLM messages with tool calls or body_json are never filtered out
- * NOTE: This is NOT the component - this is the data model that holds message data
+ * Odoo 17 uses an isEmpty getter (18.0 used computeIsEmpty).
+ * Keep LLM tool/assistant payloads visible in the thread.
  */
 patch(MessageModel.prototype, {
-  /**
-   * Override computeIsEmpty for LLM messages with tool calls or body_json
-   * @returns {Boolean} True if message is empty
-   */
-  computeIsEmpty() {
-    // For LLM messages, apply custom logic
+  get isEmpty() {
     if (this.model === "llm.thread") {
-      // Assistant messages with tool calls are never empty
       if (
         this.llm_role === "assistant" &&
         this.body_json?.tool_calls?.length > 0
       ) {
         return false;
       }
-
-      // Tool messages with body_json are never empty
       if (this.llm_role === "tool" && this.body_json) {
         return false;
       }
     }
-
-    // Use original computation for other messages
-    return super.computeIsEmpty();
+    return super.isEmpty;
   },
 });

@@ -159,32 +159,26 @@ class LLMThread(models.Model):
 
         return thread, assistant, None
 
-    def _thread_to_store(self, store, **kwargs):
-        """Extend base _thread_to_store to include assistant_id and prompt_id."""
-        super()._thread_to_store(store, **kwargs)
-
-        # Always add assistant_id and prompt_id to thread data (either value or False)
-        for thread in self:
-            thread_data = {
-                "id": thread.id,
-                "model": "llm.thread",
-                "assistant_id": {
-                    "id": thread.assistant_id.id,
-                    "name": thread.assistant_id.name,
-                    "model": "llm.assistant",
-                }
-                if thread.assistant_id
-                else False,
-                # prompt_id is defined in this module, so handle it here
-                "prompt_id": {
-                    "id": thread.prompt_id.id,
-                    "name": thread.prompt_id.name,
-                    "model": "llm.prompt",
-                }
-                if thread.prompt_id
-                else False,
+    def _llm_thread_format(self):
+        """Include assistant and prompt on Odoo 17 mail-store thread payloads."""
+        data = super()._llm_thread_format()
+        data["assistant_id"] = (
+            {
+                "id": self.assistant_id.id,
+                "name": self.assistant_id.name,
             }
-            store.add("mail.thread", thread_data)
+            if self.assistant_id
+            else False
+        )
+        data["prompt_id"] = (
+            {
+                "id": self.prompt_id.id,
+                "name": self.prompt_id.name,
+            }
+            if self.prompt_id
+            else False
+        )
+        return data
 
     def _extract_message_content(self, message):
         """Extract text content from a message regardless of format"""

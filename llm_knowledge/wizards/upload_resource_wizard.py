@@ -240,7 +240,7 @@ class UploadResourceWizard(models.TransientModel):
             "name": "Uploaded RAG Resources",
             "type": "ir.actions.act_window",
             "res_model": "llm.resource",  # Target llm.resource
-            "view_mode": "list,form,kanban",
+            "view_mode": "tree,form,kanban",
             "domain": [
                 ("id", "in", self.created_resource_ids.ids)
             ],  # Use renamed field
@@ -261,7 +261,7 @@ class UploadResourceWizard(models.TransientModel):
                     0,
                     0,
                     {
-                        "view_mode": "list",
+                        "view_mode": "tree",
                         "view_id": self.env.ref(
                             "llm_knowledge.view_llm_resource_tree"
                         ).id,
