@@ -12,6 +12,8 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
+CHAT_MODEL_USES = ("chat", "multimodal")
+
 
 class RelatedRecordProxy:
     """
@@ -160,12 +162,51 @@ class LLMThread(models.Model):
         help="Total number of attachments in this thread",
     )
 
+    @api.model
+    def _resolve_thread_chat_model(self, provider, model=None):
+        """Pick a chat-capable model for a thread.
+
+        Embedding/completion models cannot be used with chat/completions.
+        Prefer a marked default, then multimodal (GPT chat models), then chat.
+        """
+        if model and model.model_use in CHAT_MODEL_USES:
+            return model
+        if not provider:
+            return model
+        models = provider.model_ids.filtered(
+            lambda rec: rec.model_use in CHAT_MODEL_USES
+        )
+        if not models:
+            return model
+        default_model = models.filtered("default")[:1]
+        if default_model:
+            return default_model
+        multimodal = models.filtered(lambda rec: rec.model_use == "multimodal")[:1]
+        if multimodal:
+            return multimodal
+        return models[:1]
+
     @api.model_create_multi
     def create(self, vals_list):
         """Set default title if not provided"""
         needs_unique_name = []
 
         for vals in vals_list:
+            provider = (
+                self.env["llm.provider"].browse(vals["provider_id"])
+                if vals.get("provider_id")
+                else self.env["llm.provider"]
+            )
+            model = (
+                self.env["llm.model"].browse(vals["model_id"])
+                if vals.get("model_id")
+                else self.env["llm.model"]
+            )
+            resolved = self._resolve_thread_chat_model(provider, model)
+            if resolved:
+                vals["provider_id"] = resolved.provider_id.id
+                vals["model_id"] = resolved.id
+
             if not vals.get("name"):
                 # If linked to a record, use its display name
                 if vals.get("model") and vals.get("res_id"):
@@ -357,6 +398,7 @@ class LLMThread(models.Model):
             attachment_ids: Optional list of ir.attachment IDs to attach to user message.
         """
         self.ensure_one()
+        self._ensure_chat_capable_model()
 
         with self._generation_lock():
             last_message = False
@@ -386,6 +428,22 @@ class LLMThread(models.Model):
 
             last_message = yield from self.generate_messages(last_message)
             return last_message
+
+    def _ensure_chat_capable_model(self):
+        """Refuse embedding/completion models before calling a chat API."""
+        self.ensure_one()
+        if self.model_id.model_use in CHAT_MODEL_USES:
+            return
+        raise UserError(
+            _(
+                "The selected model '%(model)s' is a %(use)s model and cannot be used for chat. "
+                "Choose a chat or multimodal model (for example gpt-4o or gpt-5)."
+            )
+            % {
+                "model": self.model_id.display_name,
+                "use": self.model_id.model_use,
+            }
+        )
 
     def _get_context_messages(self, limit=25):
         """Get recent LLM messages that will be sent as context.

@@ -48,20 +48,24 @@ export class LLMThreadHeader extends Component {
   }
 
   /**
+   * Normalize many2one values from search_read tuples or mail.store objects.
+   */
+  _many2oneId(value) {
+    return this.llmStore._many2oneValue(value)?.id;
+  }
+
+  /**
    * Get current provider
    */
   get currentProvider() {
     if (!this.hasActiveThread) return null;
 
-    // Get provider_id from the thread data (now stored in mailStore)
-    const providerId =
-      this.activeThread.provider_id?.id || this.activeThread.provider_id;
+    const providerId = this._many2oneId(this.activeThread.provider_id);
     if (!providerId) return null;
 
-    // Return provider from our Map or directly from thread if available
     return (
       this.llmStore.llmProviders?.get(providerId) ||
-      this.activeThread.provider_id
+      this.llmStore._many2oneValue(this.activeThread.provider_id)
     );
   }
 
@@ -71,12 +75,9 @@ export class LLMThreadHeader extends Component {
   get currentModel() {
     if (!this.hasActiveThread) return null;
 
-    // Get model_id from the thread data (now stored in mailStore)
-    const modelId =
-      this.activeThread.model_id?.id || this.activeThread.model_id;
+    const modelId = this._many2oneId(this.activeThread.model_id);
     if (!modelId) return null;
 
-    // Return model from our Map or directly from thread if available
     return this.llmStore.llmModels?.get(modelId) || this.activeThread.model_id;
   }
 
@@ -88,19 +89,15 @@ export class LLMThreadHeader extends Component {
   }
 
   /**
-   * Get available models for current provider
+   * Get available chat models for current provider
    */
   get availableModels() {
     if (!this.currentProvider) return [];
 
-    // Filter models by provider
     const models = Array.from(this.llmStore.llmModels.values()).filter(
-      (model) => {
-        const modelProviderId = Array.isArray(model.provider_id)
-          ? model.provider_id[0]
-          : model.provider_id;
-        return modelProviderId === this.currentProvider.id;
-      }
+      (model) =>
+        this._many2oneId(model.provider_id) === this.currentProvider.id &&
+        this.llmStore._isChatCapableModel(model)
     );
 
     // Apply search filter if any
@@ -230,11 +227,15 @@ export class LLMThreadHeader extends Component {
     try {
       this.state.isLoadingUpdate = true;
 
-      // Get default model for this provider
       const models = Array.from(this.llmStore.llmModels.values()).filter(
-        (m) => m.provider_id[0] === provider.id
+        (model) =>
+          this._many2oneId(model.provider_id) === provider.id &&
+          this.llmStore._isChatCapableModel(model)
       );
-      const defaultModel = models.find((m) => m.is_default) || models[0];
+      const defaultModel =
+        models.find((model) => model.default) ||
+        models.find((model) => model.model_use === "multimodal") ||
+        models[0];
 
       const updateData = {
         provider_id: provider.id,

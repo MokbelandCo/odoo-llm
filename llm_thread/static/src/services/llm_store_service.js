@@ -74,6 +74,14 @@ export const llmStoreService = {
         return { id: value };
       },
 
+      _isChatCapableModel(model) {
+        return ["chat", "multimodal"].includes(model?.model_use);
+      },
+
+      _modelProviderId(model) {
+        return this._many2oneValue(model?.provider_id)?.id;
+      },
+
       formatLLMThread(record) {
         const toolIds = (record.tool_ids || []).map((tool) => {
           if (typeof tool === "object" && tool.id) {
@@ -382,7 +390,8 @@ export const llmStoreService = {
 
       // Create new thread with default provider and model
       async createNewThread({ recordModel, recordId } = {}) {
-        // Get first available provider and model
+        await this.isReady;
+        // Get first available provider and a chat-capable model
         const firstProvider = this.getFirstAvailableProvider();
         const firstModel = this.getFirstAvailableModel();
 
@@ -434,10 +443,24 @@ export const llmStoreService = {
         return providers.length > 0 ? providers[0] : null;
       },
 
-      // Get first available model
+      // Get first chat/multimodal model (never embeddings)
       getFirstAvailableModel() {
-        const models = Array.from(this.llmModels.values());
-        return models.length > 0 ? models[0] : null;
+        const chatModels = Array.from(this.llmModels.values()).filter((model) =>
+          this._isChatCapableModel(model)
+        );
+        const provider = this.getFirstAvailableProvider();
+        const forProvider = provider
+          ? chatModels.filter(
+              (model) => this._modelProviderId(model) === provider.id
+            )
+          : chatModels;
+        const pool = forProvider.length ? forProvider : chatModels;
+        return (
+          pool.find((model) => model.default) ||
+          pool.find((model) => model.model_use === "multimodal") ||
+          pool[0] ||
+          null
+        );
       },
 
       // Refresh threads and select specific thread
