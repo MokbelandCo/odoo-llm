@@ -10,7 +10,7 @@
         Odoo tools directly through a standards-compliant MCP server.
 
         Core Features:
-        • MCP 2025-06-18 protocol compliance with JSON-RPC 2.0
+        • MCP 2025-11-25 protocol compatibility with JSON-RPC 2.0
         • Bearer token authentication with Odoo user integration
         • Stateful session management with concurrent request handling
         • Automatic tool discovery from llm.tool registry

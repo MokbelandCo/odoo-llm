@@ -5,6 +5,7 @@ from jinja2 import Template
 from mcp.types import (
     Implementation,
     InitializeResult,
+    LATEST_PROTOCOL_VERSION,
     ServerCapabilities,
     ToolsCapability,
 )
@@ -142,12 +143,19 @@ class LLMMCPServerConfig(models.Model):
             )
             return f"{base_url}/mcp"
 
+    def negotiate_protocol_version(self, requested_version=None):
+        """Return a supported protocol version without claiming unsupported behavior."""
+        if requested_version and self.is_protocol_version_supported(requested_version):
+            return requested_version
+        return self.get_default_protocol_version()
+
     def handle_initialize_request(self, client_info=None, protocol_version=None):
         """Handle MCP initialize request - return MCP InitializeResult"""
         server_info = Implementation(name=self.name, version=self.version)
+        negotiated_version = self.negotiate_protocol_version(protocol_version)
 
         return InitializeResult(
-            protocolVersion=protocol_version,
+            protocolVersion=negotiated_version,
             capabilities=self._get_server_capabilities(),
             serverInfo=server_info,
         )
@@ -191,6 +199,10 @@ class LLMMCPServerConfig(models.Model):
             "status": "healthy",
             "server": self.name,
             "version": self.version,
+            "mode": self.mode,
+            "default_protocol_version": self.get_default_protocol_version(),
+            "supported_protocol_versions": self.all_supported_protocol_versions,
+            "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }
 
     def action_new_mcp_key(self):
