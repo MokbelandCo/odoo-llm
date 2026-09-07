@@ -113,7 +113,7 @@
                     name="connected"
                     domain="[('is_connected', '=', True)]"
                 />
-                <group expand="0" string="Group By">
+                <group name="group_by">
                     <filter
                         string="Transport"
                         name="group_by_transport"
