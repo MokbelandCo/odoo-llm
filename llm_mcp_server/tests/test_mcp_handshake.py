@@ -21,14 +21,8 @@ class TestMcpProtocolConfiguration(TransactionCase):
 class TestMcpInitializeHandshake(HttpCase):
     def test_chatgpt_protocol_reaches_initialized_state(self):
         config = self.env["llm.mcp.server.config"].get_active_config()
-        config.write(
-            {
-                "mode": "stateful",
-                "latest_protocol_version": "2025-11-25",
-                "supported_protocol_versions": ["2025-06-18"],
-            }
-        )
-        self.env.cr.commit()
+        self.assertEqual(config.mode, "stateful")
+        self.assertTrue(config.is_protocol_version_supported("2025-11-25"))
 
         initialize_response = self.url_open(
             "/mcp",
