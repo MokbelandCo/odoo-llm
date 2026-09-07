@@ -8,6 +8,9 @@
             <tree>
                 <field name="session_id" />
                 <field name="state" />
+                <field name="last_method" />
+                <field name="request_count" />
+                <field name="last_request_at" />
                 <field name="user_id" />
                 <field name="create_date" />
                 <field name="write_date" />
@@ -30,9 +33,12 @@
                     <group>
                         <group>
                             <field name="state" />
+                            <field name="initialization_diagnostic" readonly="1" />
                             <field name="user_id" />
                         </group>
                         <group>
+                            <field name="request_count" />
+                            <field name="initialized_at" />
                             <field name="create_date" readonly="1" />
                             <field name="write_date" readonly="1" />
                         </group>
@@ -46,6 +52,16 @@
                   name="client_capabilities"
                   widget="jsonb"
                 />
+                            </group>
+                        </page>
+                        <page string="Diagnostics" name="diagnostics">
+                            <group>
+                                <field name="last_method" />
+                                <field name="last_request_id" />
+                                <field name="last_request_at" />
+                                <field name="last_user_agent" />
+                                <field name="last_accept" />
+                                <field name="last_remote_address" />
                             </group>
                         </page>
                     </notebook>

@@ -39,6 +39,33 @@ class LLMMCPSession(models.Model):
     )
     client_info = fields.Json(help="Client information (name, version, etc.)")
     protocol_version = fields.Char(help="MCP protocol version requested by client")
+    last_method = fields.Char(readonly=True)
+    last_request_id = fields.Char(readonly=True)
+    last_request_at = fields.Datetime(readonly=True)
+    initialized_at = fields.Datetime(readonly=True)
+    request_count = fields.Integer(default=0, readonly=True)
+    last_user_agent = fields.Char(readonly=True)
+    last_accept = fields.Char(readonly=True)
+    last_remote_address = fields.Char(readonly=True)
+    initialization_diagnostic = fields.Char(
+        compute="_compute_initialization_diagnostic"
+    )
+
+    @api.depends("state", "last_method")
+    def _compute_initialization_diagnostic(self):
+        for session in self:
+            if session.state == "initialized":
+                session.initialization_diagnostic = "Initialization completed."
+            elif session.state == "initializing" and session.last_method == "initialize":
+                session.initialization_diagnostic = (
+                    "Waiting for the client to send notifications/initialized."
+                )
+            elif session.state == "initializing":
+                session.initialization_diagnostic = (
+                    "The client continued without completing the initialized notification."
+                )
+            else:
+                session.initialization_diagnostic = "Initialize has not completed."
 
     @api.model
     def generate_session_id(self):
@@ -90,6 +117,30 @@ class LLMMCPSession(models.Model):
 
         return session
 
+    def record_request(
+        self,
+        method,
+        request_id=None,
+        user_agent=None,
+        accept=None,
+        remote_address=None,
+    ):
+        """Store non-secret request metadata to diagnose stalled clients."""
+        for session in self:
+            session.write(
+                {
+                    "last_method": method,
+                    "last_request_id": (
+                        str(request_id) if request_id is not None else False
+                    ),
+                    "last_request_at": fields.Datetime.now(),
+                    "request_count": session.request_count + 1,
+                    "last_user_agent": user_agent,
+                    "last_accept": accept,
+                    "last_remote_address": remote_address,
+                }
+            )
+
     def is_method_allowed(self, method):
         """Check if method is allowed in current session state (stateful mode only)"""
         self.ensure_one()
@@ -122,7 +173,10 @@ class LLMMCPSession(models.Model):
                 f"Invalid state transition from '{self.state}' to '{new_state}'"
             )
 
-        self.state = new_state
+        values = {"state": new_state}
+        if new_state == "initialized":
+            values["initialized_at"] = fields.Datetime.now()
+        self.write(values)
 
     def terminate(self):
         """Terminate the session (delete it)"""
