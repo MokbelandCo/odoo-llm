@@ -212,7 +212,7 @@ class MCPController(http.Controller):
                     session.client_info,
                 )
                 # Force immediate commit so concurrent requests see the updated state
-                session._cr.commit()
+                session.env.cr.commit()
 
         # For JSON-RPC notifications, use werkzeug.abort to bypass JSON-RPC entirely
         # Following Odoo's pattern from http.py line 2185 (and 2330 & 2333)
