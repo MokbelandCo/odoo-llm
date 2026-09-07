@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP Client on Odoo 17** (`llm_mcp` 17.0.1.0.0): ported from Apexive 16.0. Odoo can import tools from external stdio MCP servers. Not present on upstream 18.0/19.0.
+
 ### Fixed
 
 - **Process with AI Button Reliability**: Replaced unreliable bus notification with client action pattern (2025-12-02)

@@ -17,6 +17,7 @@ Other 17-specific shims in this branch:
 - Letta adds `res.groups.api_key_duration` (present in Odoo 18 core, missing in 17).
 - `llm_pgvector` implements Odoo 17 `Field.update_db_column` instead of Odoo 18 `Field.create_column`.
 - Website config tools skip `website.block_third_party_domains` (Odoo 18-only).
+- `llm_mcp` is ported from Apexive **16.0** (not present on 18.0/19.0). See `llm_mcp/docs/PORTING.md`.
 
 Optional extras for remaining providers/stores/tools: `anthropic`, `chromadb-client`, `qdrant-client`, `ollama`, `mistralai`, `letta-client`, `llama-index`, `fal-client`, `replicate`, `pgvector`, `markdownify`. Knowledge pages need OCA `document_page` (17.0); MIS tools need OCA `mis_builder` (17.0).
 
@@ -93,11 +94,10 @@ Both feed into the **`llm` core** module, which provides provider abstraction, m
 - Knowledge Extensions: llm_knowledge_automation, llm_knowledge_llama, llm_knowledge_mistral, llm_tool_knowledge
 - Generation: llm_generate, llm_generate_job, llm_training
 - Domain Tools: llm_tool_account, llm_tool_mis_builder, llm_tool_ocr_mistral, llm_tool_demo
-- Integrations: llm_letta, llm_mcp_server, llm_document_page, llm_store
+- Integrations: llm_letta, llm_mcp, llm_mcp_server, llm_document_page, llm_store
 
 **⏳ Available in 16.0 branch only:**
 - llm_litellm - LiteLLM proxy integration
-- llm_mcp - Model Context Protocol (client)
 
 **Migration Highlights:**
 - Updated UI components with modern mail.store architecture
@@ -115,6 +115,7 @@ Both feed into the **`llm` core** module, which provides provider abstraction, m
 - **Vector Store Integrations**: Supports ChromaDB, pgvector, and Qdrant for efficient similarity searches.
 - **Advanced Tool Framework**: Allows LLMs to interact with Odoo data, execute actions, and use custom tools via `@llm_tool` decorator.
 - **MCP Server**: Connect Claude Desktop, Claude Code, Codex CLI, Cursor, and other MCP clients directly to Odoo.
+- **MCP Client**: Import tools from external MCP servers into Odoo assistants (`llm_mcp`).
 - **Domain-Specific Tools**: 18 accounting tools (trial balance, tax reports, reconciliation) and 44 MIS Builder tools (KPIs, variance analysis, drilldown).
 - **AI Assistants with Prompts**: Build specialized AI assistants with custom instructions, prompt templates, and tool access.
 - **Content Generation**: Generate images, text, and other content types using specialized models.
@@ -170,6 +171,7 @@ The architecture centers around five core modules that provide the foundation fo
 | `llm_tool_ocr_mistral` | 18.0.1.0.1 | Extract text from images and PDFs using Mistral AI vision models |
 | `llm_tool_demo` | 18.0.1.0.0 | Demonstration of @llm_tool decorator usage |
 | **Integrations & Specialized Features** | | |
+| `llm_mcp` | 17.0.1.0.0 | MCP client: import tools from external stdio MCP servers into Odoo |
 | `llm_mcp_server` | 18.0.1.3.1 | MCP server exposing Odoo tools to Claude Desktop, Claude Code, Codex CLI |
 | `llm_letta` | 18.0.1.0.4 | Letta agent-based AI with persistent memory and MCP tools |
 | `llm_training` | 18.0.1.0.0 | Fine-tuning dataset and training job management |
@@ -347,6 +349,7 @@ We're committed to building an open AI layer for Odoo that benefits everyone. Ar
 - [x] **Module consolidation** ✅ *Architecture simplified*
 - [x] **Multi-modal content** ✅ *Image + text generation fully working*
 - [x] **Odoo 18.0 migration** ✅ *Core modules and integrations migrated*
+- [x] **MCP Client** ✅ *Import tools from external MCP servers into Odoo chat*
 - [x] **MCP Server** ✅ *Connect Claude Desktop, Claude Code, Codex CLI to Odoo*
 - [x] **Domain-specific tools** ✅ *Accounting (18 tools) and MIS Builder (44 tools)*
 - [ ] **Advanced workflow automation** 🔄 *Business process AI*
