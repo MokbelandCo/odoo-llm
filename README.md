@@ -69,7 +69,7 @@ Both feed into the **`llm` core** module, which provides provider abstraction, m
 
 ### **Odoo 18.0 Migration Status**
 
-**✅ Available in 18.0:**
+**✅ Available in 19.0:**
 - Core: llm, llm_thread, llm_tool, llm_assistant
 - Text/Chat Providers: llm_openai, llm_ollama, llm_mistral, llm_anthropic
 - Image Providers: llm_replicate, llm_fal_ai, llm_comfyui, llm_comfy_icu
@@ -77,11 +77,10 @@ Both feed into the **`llm` core** module, which provides provider abstraction, m
 - Knowledge Extensions: llm_knowledge_automation, llm_knowledge_llama, llm_knowledge_mistral, llm_tool_knowledge
 - Generation: llm_generate, llm_generate_job, llm_training
 - Domain Tools: llm_tool_account, llm_tool_mis_builder, llm_tool_ocr_mistral, llm_tool_demo
-- Integrations: llm_letta, llm_mcp_server, llm_document_page, llm_store
+- Integrations: llm_letta, llm_mcp, llm_mcp_server, llm_document_page, llm_store
 
 **⏳ Available in 16.0 branch only:**
 - llm_litellm - LiteLLM proxy integration
-- llm_mcp - Model Context Protocol (client)
 
 **Migration Highlights:**
 - Updated UI components with modern mail.store architecture
@@ -99,6 +98,7 @@ Both feed into the **`llm` core** module, which provides provider abstraction, m
 - **Vector Store Integrations**: Supports ChromaDB, pgvector, and Qdrant for efficient similarity searches.
 - **Advanced Tool Framework**: Allows LLMs to interact with Odoo data, execute actions, and use custom tools via `@llm_tool` decorator.
 - **MCP Server**: Connect Claude Desktop, Claude Code, Codex CLI, Cursor, and other MCP clients directly to Odoo.
+- **MCP Client**: Import tools from external MCP servers into in-Odoo AI chat (`llm_mcp`).
 - **Domain-Specific Tools**: 18 accounting tools (trial balance, tax reports, reconciliation) and 44 MIS Builder tools (KPIs, variance analysis, drilldown).
 - **AI Assistants with Prompts**: Build specialized AI assistants with custom instructions, prompt templates, and tool access.
 - **Content Generation**: Generate images, text, and other content types using specialized models.
@@ -154,7 +154,8 @@ The architecture centers around five core modules that provide the foundation fo
 | `llm_tool_ocr_mistral` | 18.0.1.0.1 | Extract text from images and PDFs using Mistral AI vision models |
 | `llm_tool_demo` | 18.0.1.0.0 | Demonstration of @llm_tool decorator usage |
 | **Integrations & Specialized Features** | | |
-| `llm_mcp_server` | 18.0.1.3.1 | MCP server exposing Odoo tools to Claude Desktop, Claude Code, Codex CLI |
+| `llm_mcp` | 19.0.1.0.0 | MCP client that imports tools from external Model Context Protocol servers |
+| `llm_mcp_server` | 19.0.1.0.0 | MCP server exposing Odoo tools to Claude Desktop, Claude Code, Codex CLI |
 | `llm_letta` | 18.0.1.0.4 | Letta agent-based AI with persistent memory and MCP tools |
 | `llm_training` | 18.0.1.0.0 | Fine-tuning dataset and training job management |
 | `llm_generate_job` | 18.0.1.0.0 | Job queue management for content generation |

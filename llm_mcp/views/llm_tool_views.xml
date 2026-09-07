@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_llm_tool_form_mcp" model="ir.ui.view">
+        <field name="name">llm.tool.form.mcp</field>
+        <field name="model">llm.tool</field>
+        <field name="inherit_id" ref="llm_tool.view_llm_tool_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='implementation']" position="after">
+                <field
+                    name="mcp_server_id"
+                    invisible="implementation != 'mcp'"
+                    required="implementation == 'mcp'"
+                />
+            </xpath>
+        </field>
+    </record>
+</odoo>
