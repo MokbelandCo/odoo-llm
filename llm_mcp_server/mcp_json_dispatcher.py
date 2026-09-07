@@ -87,7 +87,19 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         try:
             jsonrequest = self.request.get_json_data()
             method = jsonrequest.get("method")
-            session_id = request.httprequest.headers.get(MCP_SESSION_ID_HEADER.lower())
+            session_id = request.httprequest.headers.get(MCP_SESSION_ID_HEADER)
+            _logger.info(
+                "MCP dispatch method=%s request_id=%s session_id=%s protocol=%s "
+                "user_agent=%s accept=%s remote=%s",
+                method,
+                jsonrequest.get("id", "notification"),
+                session_id,
+                request.httprequest.headers.get(MCP_PROTOCOL_VERSION_HEADER)
+                or (jsonrequest.get("params") or {}).get("protocolVersion"),
+                request.httprequest.user_agent.string,
+                request.httprequest.headers.get("Accept"),
+                request.httprequest.remote_addr,
+            )
 
             # 2. MCP validations BEFORE endpoint execution
             if method:
@@ -165,6 +177,10 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             self.request.future_response.headers.set(
                 "Access-Control-Allow-Headers", allowed_headers
             )
+            self.request.future_response.headers.set(
+                "Access-Control-Expose-Headers",
+                "Mcp-Session-Id, Mcp-Protocol-Version, X-MCP-Request-Id",
+            )
 
     def _response(self, result=None, error=None):
         """
@@ -176,6 +192,11 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         # Add MCP headers
         if hasattr(request, "mcp_session_id"):
             response.headers[MCP_SESSION_ID_HEADER] = request.mcp_session_id
+        if hasattr(request, "mcp_request_id"):
+            response.headers["X-MCP-Request-Id"] = request.mcp_request_id
+        response.headers["Access-Control-Expose-Headers"] = (
+            "Mcp-Session-Id, Mcp-Protocol-Version, X-MCP-Request-Id"
+        )
 
         return response
 
@@ -220,7 +241,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         """
         # Get protocol version from headers
         protocol_version = request.httprequest.headers.get(
-            MCP_PROTOCOL_VERSION_HEADER.lower()
+            MCP_PROTOCOL_VERSION_HEADER
         )
 
         # If no version provided, that's OK (we'll use default)
@@ -228,7 +249,9 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             return
 
         # Get supported versions from config
-        config = request.env["llm.mcp.server.config"].get_active_config()
+        # Protocol validation occurs before bearer authentication. Configuration
+        # is server metadata, so this read must not depend on public-user ACLs.
+        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
 
         if not config.is_protocol_version_supported(protocol_version):
             supported_versions = config.get_supported_versions_string()
