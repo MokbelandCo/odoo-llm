@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_llm_mcp_server_tree" model="ir.ui.view">
+        <field name="name">llm.mcp.server.tree</field>
+        <field name="model">llm.mcp.server</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" />
+                <field name="transport" />
+                <field name="is_connected" widget="boolean_toggle" />
+                <field name="is_active" widget="boolean_toggle" />
+                <field name="command" optional="show" />
+                <field name="protocol_version" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_llm_mcp_server_form" model="ir.ui.view">
+        <field name="name">llm.mcp.server.form</field>
+        <field name="model">llm.mcp.server</field>
+        <field name="arch" type="xml">
+            <form string="MCP Server">
+                <header>
+                    <button
+                        name="start_server"
+                        string="Start Server"
+                        type="object"
+                        class="oe_highlight"
+                        invisible="is_connected"
+                    />
+                    <button
+                        name="stop_server"
+                        string="Stop Server"
+                        type="object"
+                        invisible="not is_connected"
+                    />
+                    <button
+                        name="list_tools"
+                        string="Refresh Tools"
+                        type="object"
+                        class="oe_highlight"
+                        invisible="not is_connected"
+                    />
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only" />
+                        <h1>
+                            <field
+                                name="name"
+                                placeholder="e.g. Python Code Service"
+                            />
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Connection">
+                            <field name="transport" />
+                            <field name="is_connected" readonly="1" />
+                            <field name="is_active" />
+                        </group>
+                        <group
+                            string="Command Configuration"
+                            invisible="transport != 'stdio'"
+                        >
+                            <field
+                                name="command"
+                                required="transport == 'stdio'"
+                            />
+                            <field name="args" />
+                        </group>
+                    </group>
+                    <group
+                        string="Server Information"
+                        invisible="not is_connected"
+                    >
+                        <field name="protocol_version" readonly="1" />
+                        <field name="server_info" readonly="1" />
+                    </group>
+                    <notebook>
+                        <page string="Tools">
+                            <field name="tool_ids">
+                                <list>
+                                    <field name="name" />
+                                    <field name="title" />
+                                    <field name="description" />
+                                    <field name="active" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_llm_mcp_server_search" model="ir.ui.view">
+        <field name="name">llm.mcp.server.search</field>
+        <field name="model">llm.mcp.server</field>
+        <field name="arch" type="xml">
+            <search string="Search MCP Servers">
+                <field name="name" />
+                <filter
+                    string="Active Servers"
+                    name="active"
+                    domain="[('is_active', '=', True)]"
+                />
+                <filter
+                    string="Connected"
+                    name="connected"
+                    domain="[('is_connected', '=', True)]"
+                />
+                <group name="group_by">
+                    <filter
+                        string="Transport"
+                        name="group_by_transport"
+                        context="{'group_by': 'transport'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_llm_mcp_server" model="ir.actions.act_window">
+        <field name="name">MCP Clients</field>
+        <field name="res_model">llm.mcp.server</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Connect to an external MCP server
+            </p>
+            <p>
+                MCP Clients let Odoo import tools from external Model Context
+                Protocol servers over stdio. This is the inverse of the MCP
+                Server module, which exposes Odoo tools to Claude Desktop.
+            </p>
+        </field>
+    </record>
+</odoo>
