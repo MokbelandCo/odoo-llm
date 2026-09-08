@@ -7,6 +7,7 @@ following proper separation of concerns.
 
 import json
 import logging
+import time
 from http import HTTPStatus
 from typing import Optional
 
@@ -62,10 +63,24 @@ class MCPController(http.Controller):
     )
     def mcp_endpoint(self, **params):
         """MCP endpoint for JSON-RPC methods using custom dispatcher"""
+        started_at = time.monotonic()
         # Extract data from JSON-RPC request via dispatcher
         method = request.dispatcher.jsonrequest.get("method")
         request_id = request.dispatcher.request_id
         params = request.params or {}
+        request.mcp_request_id = str(request_id) if request_id is not None else "notification"
+        _logger.info(
+            "MCP request started method=%s request_id=%s session_id=%s "
+            "protocol=%s user_agent=%s accept=%s remote=%s",
+            method,
+            request.mcp_request_id,
+            request.httprequest.headers.get(MCP_SESSION_ID_HEADER),
+            request.httprequest.headers.get(MCP_PROTOCOL_VERSION_HEADER)
+            or params.get("protocolVersion"),
+            request.httprequest.user_agent.string,
+            request.httprequest.headers.get("Accept"),
+            request.httprequest.remote_addr,
+        )
 
         # Check if method handler exists
         if not self._is_callable(method):
@@ -88,6 +103,13 @@ class MCPController(http.Controller):
         else:
             # All other methods return result directly
             result = dispatch_result
+
+        _logger.info(
+            "MCP request completed method=%s request_id=%s duration_ms=%.2f",
+            method,
+            request.mcp_request_id,
+            (time.monotonic() - started_at) * 1000,
+        )
 
         # Convert pydantic result object to dict. by_alias keeps the camelCase
         # keys the MCP wire format expects; MCP SDK 2.0 renamed the model fields
@@ -135,7 +157,13 @@ class MCPController(http.Controller):
         ) or params.get("protocolVersion")
 
         # Use default if no version requested
-        negotiated_version = requested_version or config.get_default_protocol_version()
+        negotiated_version = config.negotiate_protocol_version(requested_version)
+        if requested_version and negotiated_version != requested_version:
+            _logger.warning(
+                "MCP client requested unsupported protocol %s; responding with %s",
+                requested_version,
+                negotiated_version,
+            )
 
         # Get server response using the negotiated version
         result = config.handle_initialize_request(
@@ -155,6 +183,7 @@ class MCPController(http.Controller):
 
             # Transition to initializing state
             session.transition_to("initializing")
+            self._record_session_request(session, "initialize", request_id)
 
             # Return wrapped response with session_id
             return MCPInitializeResponse(result=result, session_id=session.session_id)
@@ -172,9 +201,18 @@ class MCPController(http.Controller):
             session = request.env["llm.mcp.session"].sudo().get_session(session_id)
 
             if session and session.state == "initializing":
+                self._record_session_request(
+                    session, "notifications/initialized", request_id
+                )
                 session.transition_to("initialized")
+                _logger.info(
+                    "MCP session initialized session_id=%s protocol=%s client=%s",
+                    session.session_id,
+                    session.protocol_version,
+                    session.client_info,
+                )
                 # Force immediate commit so concurrent requests see the updated state
-                session._cr.commit()
+                session.env.cr.commit()
 
         # For JSON-RPC notifications, use werkzeug.abort to bypass JSON-RPC entirely
         # Following Odoo's pattern from http.py line 2185 (and 2330 & 2333)
@@ -188,11 +226,13 @@ class MCPController(http.Controller):
 
     def _mcp_ping(self, params, request_id):
         """Handle ping method"""
+        self._record_current_session_request("ping", request_id)
         return {}
 
     @requires_bearer_auth
     def _mcp_tools_list(self, params, request_id):
         """Handle tools/list method"""
+        self._record_current_session_request("tools/list", request_id)
         return request.env["llm.tool"].get_mcp_tools_list(params=params)
 
     @requires_bearer_auth
@@ -200,6 +240,7 @@ class MCPController(http.Controller):
         """Handle tools/call method"""
         # Get session ID from headers if available
         session_id = request.httprequest.headers.get("mcp-session-id")
+        self._record_current_session_request("tools/call", request_id)
 
         # Update session user_id if we have a session and authenticated user
         if session_id and request.env.user and not request.env.user._is_public():
@@ -208,6 +249,24 @@ class MCPController(http.Controller):
                 session.user_id = request.env.user.id
 
         return request.env["llm.tool"].execute_mcp_tool(params=params)
+
+    def _record_current_session_request(self, method, request_id):
+        session_id = request.httprequest.headers.get(MCP_SESSION_ID_HEADER)
+        if not session_id:
+            return
+        session = request.env["llm.mcp.session"].sudo().get_session(session_id)
+        if session:
+            self._record_session_request(session, method, request_id)
+
+    @staticmethod
+    def _record_session_request(session, method, request_id):
+        session.record_request(
+            method,
+            request_id=request_id,
+            user_agent=request.httprequest.user_agent.string,
+            accept=request.httprequest.headers.get("Accept"),
+            remote_address=request.httprequest.remote_addr,
+        )
 
     def _is_callable(self, method_name):
         """Check if method handler exists"""
