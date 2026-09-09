@@ -141,7 +141,7 @@ url = "http://localhost:8069/mcp"
 http_headers.Authorization = "Bearer YOUR_API_KEY"
 ```
 
-**Other MCP clients**: Connect to `http://localhost:8069/mcp` with `Authorization: Bearer YOUR_API_KEY` header.
+**Other MCP clients**: Connect to `http://localhost:8069/mcp`. HTTP clients that implement MCP OAuth 2.1 discover the authorization server from `/.well-known/oauth-protected-resource/mcp`. API keys remain supported as `Authorization: Bearer YOUR_API_KEY`.
 
 ### 4. Restart & Test
 
@@ -168,7 +168,7 @@ Every Odoo user can connect their own AI client independently:
 - **Protocol**: MCP 2025-06-18 spec via JSON-RPC 2.0
 - **Transport**: `streamable-http` (HTTP with streaming responses)
 - **Endpoint**: `/mcp` (POST for requests, streaming responses)
-- **Auth**: Bearer token (Odoo API keys)
+- **Auth**: OAuth 2.1 (recommended for HTTP) or Bearer API keys
 - **Tools**: Auto-discovered from `llm.tool` registry
 
 ### Request Flow

@@ -13,6 +13,8 @@
 
         <!-- Server Mode Configuration -->
         <field name="mode">stateful</field>
+        <field name="oauth_enabled" eval="True"/>
+        <field name="allow_api_key" eval="True"/>
 
         <!-- External URL left empty for auto-detection from web.base.url -->
         <field name="external_url" />

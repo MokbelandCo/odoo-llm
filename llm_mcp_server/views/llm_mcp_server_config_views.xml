@@ -29,6 +29,9 @@
                 readonly="1"
               />
                             <field name="mode" />
+                            <field name="oauth_enabled" />
+                            <field name="allow_api_key" />
+                            <field name="oauth_issuer_url" placeholder="Leave empty to use this Odoo database" />
                         </group>
                         <group>
                             <field

@@ -142,7 +142,6 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
 
         # Handle Werkzeug HTTP exceptions (401, 404, etc.)
         if isinstance(exc, werkzeug.exceptions.HTTPException):
-            # Return proper HTTP status for Werkzeug exceptions
             response_data = {
                 "jsonrpc": "2.0",
                 "id": self.request_id,
@@ -151,9 +150,14 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
                     "message": exc.description or str(exc),
                 },
             }
+            extra_headers = {"Content-Type": "application/json"}
+            challenges = getattr(exc, "www_authenticate", None) or ()
+            if challenges:
+                extra_headers["WWW-Authenticate"] = str(challenges[0])
             return request.make_json_response(
                 response_data,
-                status=exc.code,  # Use the actual HTTP status
+                status=exc.code,
+                headers=extra_headers,
             )
 
         # For everything else, let parent handle it

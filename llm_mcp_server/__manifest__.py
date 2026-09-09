@@ -11,7 +11,7 @@
 
         Core Features:
         • MCP 2025-11-25 protocol compatibility with JSON-RPC 2.0
-        • Bearer token authentication with Odoo user integration
+        • Bearer authentication with OAuth 2.1 and Odoo API keys
         • Stateful session management with concurrent request handling
         • Automatic tool discovery from llm.tool registry
         • Real-time tool execution with proper Odoo context
@@ -36,6 +36,8 @@
         "data/llm_mcp_server_config.xml",
         "views/llm_mcp_server_config_views.xml",
         "views/llm_mcp_session_views.xml",
+        "views/llm_mcp_oauth_client_views.xml",
+        "views/mcp_oauth_templates.xml",
         "views/res_users_views.xml",
         "wizards/mcp_key_wizard_views.xml",
     ],
