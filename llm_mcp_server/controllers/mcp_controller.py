@@ -36,14 +36,10 @@ class MCPInitializeResponse(BaseModel):
 
 
 def requires_bearer_auth(handler_func):
-    """Decorator that applies MCP-compatible bearer authentication"""
+    """Decorator that applies MCP bearer authentication (OAuth token or API key)."""
 
     def wrapper(self, *args, **kwargs):
-        # Clean up the public uid and use built-in _auth_method_bearer
-        request.update_env(user=False)
-        request.env["ir.http"]._auth_method_bearer()
-
-        # Authentication succeeded - proceed with handler
+        request.env["ir.http"]._auth_method_mcp_bearer()
         return handler_func(self, *args, **kwargs)
 
     return wrapper
@@ -119,7 +115,7 @@ class MCPController(http.Controller):
         else:
             return result or {}
 
-    @http.route("/mcp", type="http", auth="bearer", methods=["DELETE"], csrf=False)
+    @http.route("/mcp", type="http", auth="mcp_bearer", methods=["DELETE"], csrf=False)
     def mcp_delete_session(self):
         """MCP endpoint for session termination"""
         return self._handle_delete_session()
