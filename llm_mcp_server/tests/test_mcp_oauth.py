@@ -122,6 +122,27 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(token_response.status_code, 200, token_response.text)
         token = token_response.json()["access_token"]
 
+        initialize = self.url_open(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "oauth-test", "version": "1.0.0"},
+                },
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            },
+        )
+        self.assertEqual(initialize.status_code, 200, initialize.text)
+        session_id = initialize.headers.get("Mcp-Session-Id")
+
         tools = self.url_open(
             "/mcp",
             json={
@@ -134,6 +155,7 @@ class TestMcpOauthHttp(HttpCase):
                 "Authorization": f"Bearer {token}",
                 "Accept": "application/json, text/event-stream",
                 "Content-Type": "application/json",
+                **({"Mcp-Session-Id": session_id} if session_id else {}),
             },
         )
         self.assertEqual(tools.status_code, 200, tools.text)
