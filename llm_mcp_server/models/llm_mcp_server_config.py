@@ -13,6 +13,8 @@ from mcp.types import (
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..oauth import MCP_OAUTH_SCOPE, canonical_resource_uri
+
 API_KEY_PLACEHOLDER = "YOUR_API_KEY"
 
 # Claude mcp-remote server config (shared by Claude Desktop and Claude Code)
@@ -101,6 +103,26 @@ class LLMMCPServerConfig(models.Model):
         tracking=True,
     )
 
+    oauth_enabled = fields.Boolean(
+        string="OAuth 2.1",
+        default=True,
+        tracking=True,
+        help="Advertise Protected Resource Metadata and accept OAuth access tokens "
+        "in addition to Odoo API keys.",
+    )
+    allow_api_key = fields.Boolean(
+        string="Allow API Keys",
+        default=True,
+        tracking=True,
+        help="Accept Odoo user API keys as Bearer tokens (existing MCP clients).",
+    )
+    oauth_issuer_url = fields.Char(
+        string="Authorization Server URL",
+        help="Issuer URL advertised to MCP clients. Leave empty to use this Odoo "
+        "database as the authorization server.",
+        tracking=True,
+    )
+
     # MCP Server Mode Configuration
     mode = fields.Selection(
         [
@@ -131,17 +153,78 @@ class LLMMCPServerConfig(models.Model):
             raise ValidationError("No active MCP Server configuration found.")
         return config
 
+    def get_base_url(self):
+        """Public origin used in OAuth metadata (no trailing slash)."""
+        self.ensure_one()
+        if self.external_url:
+            return self.external_url.rstrip("/")
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("web.base.url", "http://localhost:8069")
+            .rstrip("/")
+        )
+
     def get_mcp_server_url(self):
         """Get the MCP server URL that external clients can reach"""
-        if self.external_url:
-            return f"{self.external_url.rstrip('/')}/mcp"
-        else:
-            base_url = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("web.base.url", "http://localhost:8069")
-            )
-            return f"{base_url}/mcp"
+        return f"{self.get_base_url()}/mcp"
+
+    def get_oauth_issuer(self):
+        self.ensure_one()
+        if self.oauth_issuer_url:
+            return self.oauth_issuer_url.rstrip("/")
+        return self.get_base_url()
+
+    def get_resource_metadata_url(self):
+        """RFC 9728 path-aware protected resource metadata URL."""
+        return f"{self.get_base_url()}/.well-known/oauth-protected-resource/mcp"
+
+    def get_protected_resource_metadata(self):
+        self.ensure_one()
+        resource = canonical_resource_uri(self.get_mcp_server_url())
+        return {
+            "resource": resource,
+            "authorization_servers": [self.get_oauth_issuer()],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": [MCP_OAUTH_SCOPE],
+            "resource_documentation": f"{self.get_base_url()}/mcp/health",
+        }
+
+    def get_authorization_server_metadata(self):
+        self.ensure_one()
+        issuer = self.get_oauth_issuer()
+        return {
+            "issuer": issuer,
+            "authorization_endpoint": f"{issuer}/mcp/oauth/authorize",
+            "token_endpoint": f"{issuer}/mcp/oauth/token",
+            "registration_endpoint": f"{issuer}/mcp/oauth/register",
+            "revocation_endpoint": f"{issuer}/mcp/oauth/revoke",
+            "introspection_endpoint": f"{issuer}/mcp/oauth/introspect",
+            "scopes_supported": [MCP_OAUTH_SCOPE],
+            "response_types_supported": ["code"],
+            "response_modes_supported": ["query"],
+            "grant_types_supported": [
+                "authorization_code",
+                "refresh_token",
+                "client_credentials",
+            ],
+            "token_endpoint_auth_methods_supported": [
+                "client_secret_basic",
+                "client_secret_post",
+                "none",
+            ],
+            "code_challenge_methods_supported": ["S256"],
+            "revocation_endpoint_auth_methods_supported": [
+                "client_secret_basic",
+                "client_secret_post",
+                "none",
+            ],
+            "introspection_endpoint_auth_methods_supported": [
+                "client_secret_basic",
+                "client_secret_post",
+                "none",
+            ],
+        }
 
     def negotiate_protocol_version(self, requested_version=None):
         """Return a supported protocol version without claiming unsupported behavior."""
@@ -202,6 +285,9 @@ class LLMMCPServerConfig(models.Model):
             "mode": self.mode,
             "default_protocol_version": self.get_default_protocol_version(),
             "supported_protocol_versions": self.all_supported_protocol_versions,
+            "oauth_enabled": self.oauth_enabled,
+            "allow_api_key": self.allow_api_key,
+            "authorization_server": self.get_oauth_issuer() if self.oauth_enabled else None,
             "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }
 

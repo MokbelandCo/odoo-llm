@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <template id="mcp_oauth_layout" name="MCP OAuth Layout">
+        <t t-call="web.login_layout">
+            <t t-set="disable_footer" t-value="True"/>
+            <div class="container mt-4 mb-4">
+                <div class="row justify-content-center">
+                    <div class="col-md-6">
+                        <t t-out="0"/>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="mcp_oauth_authorize" name="MCP OAuth Authorize">
+        <t t-call="llm_mcp_server.mcp_oauth_layout">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Authorize MCP client</h3>
+                    <p>
+                        <strong t-out="client_name"/> wants to access Odoo MCP tools
+                        using scope <code t-out="scope"/>.
+                    </p>
+                    <p class="text-muted">
+                        Resource: <code t-out="resource"/>
+                    </p>
+                    <form method="post" t-att-action="'/mcp/oauth/authorize'">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="client_id" t-att-value="client_id"/>
+                        <input type="hidden" name="redirect_uri" t-att-value="redirect_uri"/>
+                        <input type="hidden" name="state" t-att-value="state"/>
+                        <input type="hidden" name="scope" t-att-value="scope"/>
+                        <input type="hidden" name="resource" t-att-value="resource"/>
+                        <input type="hidden" name="code_challenge" t-att-value="code_challenge"/>
+                        <input type="hidden" name="code_challenge_method" t-att-value="code_challenge_method"/>
+                        <input type="hidden" name="response_type" value="code"/>
+                        <button type="submit" name="allow" value="1" class="btn btn-primary">
+                            Allow
+                        </button>
+                        <button type="submit" name="deny" value="1" class="btn btn-secondary">
+                            Deny
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="mcp_oauth_error" name="MCP OAuth Error">
+        <t t-call="llm_mcp_server.mcp_oauth_layout">
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading" t-out="title"/>
+                <p t-out="message"/>
+            </div>
+        </t>
+    </template>
+</odoo>
