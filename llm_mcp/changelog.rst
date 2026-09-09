@@ -1,3 +1,10 @@
+17.0.1.1.0 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Streamable HTTP transport for remote MCP servers
+* [ADD] OAuth 2.1 client support: protected-resource discovery, client credentials,
+  authorization code + PKCE, token refresh, and static Bearer tokens
+
 17.0.1.0.0 (2026-09-06)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

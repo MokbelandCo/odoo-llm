@@ -31,6 +31,19 @@ Dependencies: `llm`, `llm_tool`.
 
 Imported tools appear on `llm.tool` with implementation **MCP Client** and can be attached to assistants like any other tool.
 
+## Configure an HTTP MCP server (OAuth)
+
+1. Open **LLM → Configuration → MCP Clients**
+2. Create a server with transport **Streamable HTTP** and the remote `/mcp` URL
+3. Choose authentication:
+   - **None** for open servers
+   - **Static Bearer Token** for API keys
+   - **OAuth 2.1** for RFC 9728 discovery
+4. For OAuth client credentials, set client ID and secret, then **Start Server**
+5. For authorization code + PKCE, set the client ID and click **Authorize**
+
+The client sends RFC 8707 `resource` on token requests and retries once after a `401` with `WWW-Authenticate: resource_metadata=...`.
+
 ## Odoo 17 notes
 
 - Views use Odoo 17 modifiers (`invisible=`, `<tree>`, `oe_chatter`) rather than 16.0 `attrs`.
