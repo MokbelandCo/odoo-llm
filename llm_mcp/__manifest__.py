@@ -1,6 +1,6 @@
 {
     "name": "LLM MCP Client",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Technical",
     "summary": "MCP client that imports tools from external Model Context Protocol servers",
     "description": """
@@ -11,7 +11,8 @@
         tools to Claude Desktop and other MCP hosts).
 
         Core Features:
-        • Connect to external MCP servers over stdio (JSON-RPC 2.0)
+        • Connect to external MCP servers over stdio or streamable HTTP
+        • OAuth 2.1 (RFC 9728 discovery, PKCE, client credentials) or static Bearer tokens
         • Auto-discover and register tools exposed by those servers
         • Execute MCP tools from in-Odoo LLM conversations
         • Management UI for MCP server connections under LLM Configuration
@@ -21,7 +22,7 @@
     "license": "LGPL-3",
     "depends": ["base", "mail", "llm", "llm_tool"],
     "external_dependencies": {
-        "python": [],
+        "python": ["requests"],
     },
     "data": [
         "security/ir.model.access.csv",
