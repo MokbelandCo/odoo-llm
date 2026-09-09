@@ -218,6 +218,14 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
 
         config = request.env["llm.mcp.server.config"].sudo().get_active_config()
 
+        protected_methods = {"tools/list", "tools/call"}
+        if method_name in protected_methods:
+            authorization = request.httprequest.headers.get("Authorization") or ""
+            if not authorization.lower().startswith("bearer "):
+                request.env["ir.http"]._mcp_unauthorized(
+                    "Missing Bearer token", error="invalid_request"
+                )
+
         # For stateless mode, no session validation needed
         if config.mode == "stateless":
             return
