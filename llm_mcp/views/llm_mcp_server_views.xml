@@ -43,6 +43,13 @@
                         class="oe_highlight"
                         invisible="not is_connected"
                     />
+                    <button
+                        name="action_oauth_authorize"
+                        string="Authorize"
+                        type="object"
+                        class="oe_highlight"
+                        invisible="transport != 'http' or auth_type != 'oauth' or oauth_grant_type != 'authorization_code'"
+                    />
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -59,6 +66,7 @@
                             <field name="transport" />
                             <field name="is_connected" readonly="1" />
                             <field name="is_active" />
+                            <field name="auth_type" invisible="transport != 'http'" />
                         </group>
                         <group
                             string="Command Configuration"
@@ -69,6 +77,48 @@
                                 required="transport == 'stdio'"
                             />
                             <field name="args" />
+                        </group>
+                        <group
+                            string="HTTP"
+                            invisible="transport != 'http'"
+                        >
+                            <field
+                                name="url"
+                                required="transport == 'http'"
+                                placeholder="https://example.com/mcp"
+                            />
+                            <field
+                                name="bearer_token"
+                                password="True"
+                                invisible="auth_type != 'bearer'"
+                            />
+                            <field
+                                name="oauth_grant_type"
+                                invisible="auth_type != 'oauth'"
+                            />
+                            <field
+                                name="oauth_client_id"
+                                invisible="auth_type != 'oauth'"
+                            />
+                            <field
+                                name="oauth_client_secret"
+                                password="True"
+                                invisible="auth_type != 'oauth'"
+                            />
+                            <field
+                                name="oauth_scope"
+                                invisible="auth_type != 'oauth'"
+                            />
+                            <field
+                                name="oauth_token_expiry"
+                                readonly="1"
+                                invisible="auth_type != 'oauth'"
+                            />
+                            <field
+                                name="oauth_issuer"
+                                readonly="1"
+                                invisible="auth_type != 'oauth'"
+                            />
                         </group>
                     </group>
                     <group
@@ -139,8 +189,8 @@
             </p>
             <p>
                 MCP Clients let Odoo import tools from external Model Context
-                Protocol servers over stdio. This is the inverse of the MCP
-                Server module, which exposes Odoo tools to Claude Desktop.
+                Protocol servers over stdio or streamable HTTP, including
+                OAuth 2.1. This is the inverse of the MCP Server module.
             </p>
         </field>
     </record>
