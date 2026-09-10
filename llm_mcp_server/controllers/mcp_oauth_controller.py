@@ -1,7 +1,5 @@
 """MCP OAuth 2.1 authorization server endpoints (RFC 8414, 7591, 8707, 9728)."""
 
-from urllib.parse import urlencode, urlparse
-
 from werkzeug.exceptions import BadRequest
 
 from odoo import http
@@ -14,6 +12,7 @@ from ..oauth import (
     is_safe_redirect_uri,
     new_token,
     parse_basic_client_auth,
+    redirect_uri_with_params,
 )
 
 def _json_response(payload, status=200):
@@ -146,12 +145,7 @@ class MCPOAuthController(http.Controller):
         query = {"error": error, "error_description": description}
         if state:
             query["state"] = state
-        parsed = urlparse(redirect_uri)
-        separator = "&" if parsed.query else ""
-        location = urlunparse(
-            parsed._replace(query=f"{parsed.query}{separator}{urlencode(query)}")
-        )
-        return request.redirect(location, local=False)
+        return request.redirect(redirect_uri_with_params(redirect_uri, query), local=False)
 
     @http.route(
         "/mcp/oauth/authorize",
@@ -209,6 +203,7 @@ class MCPOAuthController(http.Controller):
         return request.render(
             "llm_mcp_server.mcp_oauth_authorize",
             {
+                "title": "Authorize MCP client",
                 "client_name": client.name,
                 "scope": params["scope"],
                 "resource": resource,
@@ -258,12 +253,9 @@ class MCPOAuthController(http.Controller):
         query = {"code": code.code}
         if params["state"]:
             query["state"] = params["state"]
-        parsed = urlparse(params["redirect_uri"])
-        separator = "&" if parsed.query else ""
-        location = urlunparse(
-            parsed._replace(query=f"{parsed.query}{separator}{urlencode(query)}")
+        return request.redirect(
+            redirect_uri_with_params(params["redirect_uri"], query), local=False
         )
-        return request.redirect(location, local=False)
 
     def _extract_client(self):
         header = request.httprequest.headers.get("Authorization")
