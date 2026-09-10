@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_llm_mcp_oauth_client_list" model="ir.ui.view">
+        <field name="name">llm.mcp.oauth.client.list</field>
+        <field name="model">llm.mcp.oauth.client</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="client_id"/>
+                <field name="token_endpoint_auth_method"/>
+                <field name="is_confidential"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_llm_mcp_oauth_client_form" model="ir.ui.view">
+        <field name="name">llm.mcp.oauth.client.form</field>
+        <field name="model">llm.mcp.oauth.client</field>
+        <field name="arch" type="xml">
+            <form string="MCP OAuth Client">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="client_id"/>
+                            <field name="token_endpoint_auth_method"/>
+                            <field name="is_confidential"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="scope"/>
+                            <field name="service_user_id"/>
+                            <field name="grant_types" widget="json_editor"/>
+                            <field name="redirect_uris" widget="json_editor"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_llm_mcp_oauth_client" model="ir.actions.act_window">
+        <field name="name">MCP OAuth Clients</field>
+        <field name="res_model">llm.mcp.oauth.client</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem
+        id="menu_llm_mcp_oauth_client"
+        name="MCP OAuth Clients"
+        action="action_llm_mcp_oauth_client"
+        parent="llm.menu_llm_config"
+        sequence="55"
+    />
+</odoo>

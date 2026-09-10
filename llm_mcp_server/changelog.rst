@@ -1,3 +1,12 @@
+19.0.1.2.0 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] OAuth 2.1 for the MCP HTTP resource server (RFC 9728 / 8414 / 7591 / 8707)
+* [ADD] Protected resource and authorization server well-known metadata
+* [ADD] Authorization code + PKCE, refresh tokens, client credentials, and DCR
+* [IMP] ``WWW-Authenticate`` on 401 now advertises ``resource_metadata``
+* [IMP] Bearer auth accepts OAuth access tokens or existing Odoo API keys
+
 18.0.1.3.1 (2026-01-07)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

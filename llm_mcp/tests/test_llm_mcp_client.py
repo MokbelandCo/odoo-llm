@@ -189,3 +189,58 @@ class TestLLMMCPClient(TransactionCase):
         echo.action_reset_input_schema()
         schema = json.loads(echo.input_schema)
         self.assertIn("message", schema.get("properties", {}))
+
+    def test_http_transport_requires_url(self):
+        with self.assertRaises(ValidationError):
+            self.MCPServer.create(
+                {
+                    "name": "HTTP without URL",
+                    "transport": "http",
+                    "url": False,
+                }
+            )
+
+    def test_store_oauth_token_response(self):
+        server = self.MCPServer.create(
+            {
+                "name": "HTTP OAuth",
+                "transport": "http",
+                "url": "https://mcp.example.com/mcp",
+                "auth_type": "oauth",
+                "oauth_grant_type": "client_credentials",
+                "oauth_client_id": "cid",
+                "oauth_client_secret": "csecret",
+            }
+        )
+        server._store_token_response(
+            {
+                "access_token": "tok-1",
+                "refresh_token": "ref-1",
+                "expires_in": 3600,
+            }
+        )
+        self.assertEqual(server.get_http_access_token(), "tok-1")
+        self.assertEqual(server.oauth_refresh_token, "ref-1")
+        self.assertTrue(server.oauth_token_expiry)
+
+    def test_canonical_resource_and_www_authenticate(self):
+        from odoo.addons.llm_mcp.models.llm_mcp_http_client import (
+            _parse_www_authenticate_resource_metadata,
+        )
+
+        server = self.MCPServer.create(
+            {
+                "name": "HTTP Canonical",
+                "transport": "http",
+                "url": "https://MCP.Example.COM/mcp/",
+            }
+        )
+        self.assertEqual(server._canonical_resource(), "https://mcp.example.com/mcp")
+        header = (
+            'Bearer realm="mcp", '
+            'resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"'
+        )
+        self.assertEqual(
+            _parse_www_authenticate_resource_metadata(header),
+            "https://mcp.example.com/.well-known/oauth-protected-resource/mcp",
+        )

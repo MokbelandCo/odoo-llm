@@ -142,7 +142,6 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
 
         # Handle Werkzeug HTTP exceptions (401, 404, etc.)
         if isinstance(exc, werkzeug.exceptions.HTTPException):
-            # Return proper HTTP status for Werkzeug exceptions
             response_data = {
                 "jsonrpc": "2.0",
                 "id": self.request_id,
@@ -151,9 +150,14 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
                     "message": exc.description or str(exc),
                 },
             }
+            extra_headers = {"Content-Type": "application/json"}
+            challenges = getattr(exc, "www_authenticate", None) or ()
+            if challenges:
+                extra_headers["WWW-Authenticate"] = str(challenges[0])
             return request.make_json_response(
                 response_data,
-                status=exc.code,  # Use the actual HTTP status
+                status=exc.code,
+                headers=extra_headers,
             )
 
         # For everything else, let parent handle it
@@ -213,6 +217,14 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             return
 
         config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+
+        protected_methods = {"tools/list", "tools/call"}
+        if method_name in protected_methods:
+            authorization = request.httprequest.headers.get("Authorization") or ""
+            if not authorization.lower().startswith("bearer "):
+                request.env["ir.http"]._mcp_unauthorized(
+                    "Missing Bearer token", error="invalid_request"
+                )
 
         # For stateless mode, no session validation needed
         if config.mode == "stateless":
