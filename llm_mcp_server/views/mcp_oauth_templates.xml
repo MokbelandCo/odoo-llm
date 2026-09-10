@@ -1,21 +1,48 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
+    <!--
+        Use web.layout instead of web.login_layout. When Website is installed,
+        web.login_layout is replaced with website.layout, which requires a
+        frontend ``website`` qcontext that these backend auth="user" routes
+        do not provide (KeyError: 'website'). Do not pull frontend asset
+        bundles either; those can also assume request.website.
+    -->
     <template id="mcp_oauth_layout" name="MCP OAuth Layout">
-        <t t-call="web.login_layout">
-            <t t-set="disable_footer" t-value="True"/>
-            <div class="container mt-4 mb-4">
-                <div class="row justify-content-center">
-                    <div class="col-md-6">
-                        <t t-out="0"/>
-                    </div>
-                </div>
+        <t t-call="web.layout">
+            <t t-set="html_data" t-value="{'style': 'height: 100%;'}"/>
+            <t t-set="body_classname" t-value="'bg-100'"/>
+            <t t-set="head">
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <style>
+                    body.bg-100 { background: #f8f9fa; margin: 0; font-family: system-ui, sans-serif; }
+                    .o_mcp_oauth { min-height: 100vh; display: flex; justify-content: center; }
+                    .o_mcp_oauth main { width: 100%; max-width: 32rem; margin: 3rem 1rem; }
+                    .o_mcp_oauth_authorize, .o_mcp_oauth_error {
+                        background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: 1.5rem;
+                    }
+                    .o_mcp_oauth .card-title, .o_mcp_oauth .alert-heading { margin-top: 0; }
+                    .o_mcp_oauth .text-muted { color: #6c757d; }
+                    .o_mcp_oauth code { word-break: break-all; }
+                    .o_mcp_oauth_allow, .o_mcp_oauth_deny {
+                        font: inherit; padding: .5rem 1rem; border-radius: .25rem;
+                        border: 1px solid transparent; cursor: pointer; margin-right: .5rem;
+                    }
+                    .o_mcp_oauth_allow { background: #0d6efd; color: #fff; }
+                    .o_mcp_oauth_deny { background: #6c757d; color: #fff; }
+                    .o_mcp_oauth_error { border-color: #f5c2c7; background: #f8d7da; color: #842029; }
+                </style>
+            </t>
+            <div id="wrapwrap" class="o_mcp_oauth">
+                <main>
+                    <t t-out="0"/>
+                </main>
             </div>
         </t>
     </template>
 
     <template id="mcp_oauth_authorize" name="MCP OAuth Authorize">
         <t t-call="llm_mcp_server.mcp_oauth_layout">
-            <div class="card">
+            <div class="o_mcp_oauth_authorize card">
                 <div class="card-body">
                     <h3 class="card-title">Authorize MCP client</h3>
                     <p>
@@ -25,7 +52,7 @@
                     <p class="text-muted">
                         Resource: <code t-out="resource"/>
                     </p>
-                    <form method="post" t-att-action="'/mcp/oauth/authorize'">
+                    <form method="post" class="o_mcp_oauth_authorize_form" t-att-action="'/mcp/oauth/authorize'">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="hidden" name="client_id" t-att-value="client_id"/>
                         <input type="hidden" name="redirect_uri" t-att-value="redirect_uri"/>
@@ -35,10 +62,10 @@
                         <input type="hidden" name="code_challenge" t-att-value="code_challenge"/>
                         <input type="hidden" name="code_challenge_method" t-att-value="code_challenge_method"/>
                         <input type="hidden" name="response_type" value="code"/>
-                        <button type="submit" name="allow" value="1" class="btn btn-primary">
+                        <button type="submit" name="allow" value="1" class="o_mcp_oauth_allow btn btn-primary">
                             Allow
                         </button>
-                        <button type="submit" name="deny" value="1" class="btn btn-secondary">
+                        <button type="submit" name="deny" value="1" class="o_mcp_oauth_deny btn btn-secondary">
                             Deny
                         </button>
                     </form>
@@ -49,7 +76,7 @@
 
     <template id="mcp_oauth_error" name="MCP OAuth Error">
         <t t-call="llm_mcp_server.mcp_oauth_layout">
-            <div class="alert alert-danger" role="alert">
+            <div class="o_mcp_oauth_error alert alert-danger" role="alert">
                 <h4 class="alert-heading" t-out="title"/>
                 <p t-out="message"/>
             </div>

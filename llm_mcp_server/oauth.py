@@ -6,7 +6,7 @@ import hmac
 import logging
 import secrets
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from odoo import fields
 
@@ -79,6 +79,14 @@ def is_safe_redirect_uri(uri):
         hostname = (parsed.hostname or "").lower()
         return hostname in ("localhost", "127.0.0.1", "::1")
     return False
+
+
+def redirect_uri_with_params(redirect_uri, params):
+    """Append query parameters to a registered client redirect URI."""
+    parsed = urlparse(redirect_uri)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.update({key: value for key, value in params.items() if value is not None})
+    return urlunparse(parsed._replace(query=urlencode(query)))
 
 
 def expiry_datetime(seconds):

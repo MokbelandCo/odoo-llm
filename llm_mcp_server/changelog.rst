@@ -1,3 +1,10 @@
+19.0.1.2.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] OAuth authorize/error pages no longer crash with ``KeyError: 'website'`` when Website is installed
+* [FIX] Authorization redirects now build the callback URL (``urlunparse`` was not imported)
+* [ADD] HTTP tests for the login-gated consent page, allow/deny, and PKCE token exchange
+
 19.0.1.2.0 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
