@@ -13,9 +13,7 @@ class LLMMCPClientOAuthController(http.Controller):
     def oauth_callback(self, **kwargs):
         error = kwargs.get("error")
         if error:
-            return request.redirect(
-                "/web#action=llm_mcp.action_llm_mcp_server"
-            )
+            return request.redirect("/web#action=llm_mcp.action_llm_mcp_server")
         state = kwargs.get("state")
         code = kwargs.get("code")
         if not state or not code:

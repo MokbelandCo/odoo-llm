@@ -6,10 +6,10 @@ Connect in-Odoo AI assistants to **external** MCP servers and import their tools
 
 This is the inverse of `llm_mcp_server`:
 
-| Module | Role |
-|--------|------|
+| Module                  | Role                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `llm_mcp` (this module) | Odoo is an MCP **client**. It starts an external stdio server and registers that server's tools for LLM chat. |
-| `llm_mcp_server` | Odoo is an MCP **server**. Claude Desktop / Cursor connect *to* Odoo. |
+| `llm_mcp_server`        | Odoo is an MCP **server**. Claude Desktop / Cursor connect _to_ Odoo.                                         |
 
 Upstream Apexive dropped `llm_mcp` from 18.0 as not-ready. This 17.0 module is a backport of the 16.0 client, adapted to the 17.0 `llm.tool` execute/schema APIs.
 

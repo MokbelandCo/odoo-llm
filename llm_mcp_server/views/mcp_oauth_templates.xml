@@ -9,10 +9,13 @@
     -->
     <template id="mcp_oauth_layout" name="MCP OAuth Layout">
         <t t-call="web.layout">
-            <t t-set="html_data" t-value="{'style': 'height: 100%;'}"/>
-            <t t-set="body_classname" t-value="'bg-100'"/>
+            <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
+            <t t-set="body_classname" t-value="'bg-100'" />
             <t t-set="head">
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1"
+        />
                 <style>
                     body.bg-100 { background: #f8f9fa; margin: 0; font-family: system-ui, sans-serif; }
                     .o_mcp_oauth { min-height: 100vh; display: flex; justify-content: center; }
@@ -34,7 +37,7 @@
             </t>
             <div id="wrapwrap" class="o_mcp_oauth">
                 <main>
-                    <t t-out="0"/>
+                    <t t-out="0" />
                 </main>
             </div>
         </t>
@@ -46,26 +49,70 @@
                 <div class="card-body">
                     <h3 class="card-title">Authorize MCP client</h3>
                     <p>
-                        <strong t-out="client_name"/> wants to access Odoo MCP tools
-                        using scope <code t-out="scope"/>.
+                        <strong
+              t-out="client_name"
+            /> wants to access Odoo MCP tools
+                        using scope <code t-out="scope" />.
                     </p>
                     <p class="text-muted">
-                        Resource: <code t-out="resource"/>
+                        Resource: <code t-out="resource" />
                     </p>
-                    <form method="post" class="o_mcp_oauth_authorize_form" t-att-action="'/mcp/oauth/authorize'">
-                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                        <input type="hidden" name="client_id" t-att-value="client_id"/>
-                        <input type="hidden" name="redirect_uri" t-att-value="redirect_uri"/>
-                        <input type="hidden" name="state" t-att-value="state"/>
-                        <input type="hidden" name="scope" t-att-value="scope"/>
-                        <input type="hidden" name="resource" t-att-value="resource"/>
-                        <input type="hidden" name="code_challenge" t-att-value="code_challenge"/>
-                        <input type="hidden" name="code_challenge_method" t-att-value="code_challenge_method"/>
-                        <input type="hidden" name="response_type" value="code"/>
-                        <button type="submit" name="allow" value="1" class="o_mcp_oauth_allow btn btn-primary">
+                    <form
+            method="post"
+            class="o_mcp_oauth_authorize_form"
+            t-att-action="'/mcp/oauth/authorize'"
+          >
+                        <input
+              type="hidden"
+              name="csrf_token"
+              t-att-value="request.csrf_token()"
+            />
+                        <input
+              type="hidden"
+              name="client_id"
+              t-att-value="client_id"
+            />
+                        <input
+              type="hidden"
+              name="redirect_uri"
+              t-att-value="redirect_uri"
+            />
+                        <input type="hidden" name="state" t-att-value="state" />
+                        <input type="hidden" name="scope" t-att-value="scope" />
+                        <input
+              type="hidden"
+              name="resource"
+              t-att-value="resource"
+            />
+                        <input
+              type="hidden"
+              name="code_challenge"
+              t-att-value="code_challenge"
+            />
+                        <input
+              type="hidden"
+              name="code_challenge_method"
+              t-att-value="code_challenge_method"
+            />
+                        <input
+              type="hidden"
+              name="response_type"
+              value="code"
+            />
+                        <button
+              type="submit"
+              name="allow"
+              value="1"
+              class="o_mcp_oauth_allow btn btn-primary"
+            >
                             Allow
                         </button>
-                        <button type="submit" name="deny" value="1" class="o_mcp_oauth_deny btn btn-secondary">
+                        <button
+              type="submit"
+              name="deny"
+              value="1"
+              class="o_mcp_oauth_deny btn btn-secondary"
+            >
                             Deny
                         </button>
                     </form>
@@ -77,8 +124,8 @@
     <template id="mcp_oauth_error" name="MCP OAuth Error">
         <t t-call="llm_mcp_server.mcp_oauth_layout">
             <div class="o_mcp_oauth_error alert alert-danger" role="alert">
-                <h4 class="alert-heading" t-out="title"/>
-                <p t-out="message"/>
+                <h4 class="alert-heading" t-out="title" />
+                <p t-out="message" />
             </div>
         </t>
     </template>

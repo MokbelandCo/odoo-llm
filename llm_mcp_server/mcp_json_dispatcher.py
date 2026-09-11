@@ -252,9 +252,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         Following MCP SDK pattern (lines 706-726)
         """
         # Get protocol version from headers
-        protocol_version = request.httprequest.headers.get(
-            MCP_PROTOCOL_VERSION_HEADER
-        )
+        protocol_version = request.httprequest.headers.get(MCP_PROTOCOL_VERSION_HEADER)
 
         # If no version provided, that's OK (we'll use default)
         if not protocol_version:

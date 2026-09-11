@@ -269,5 +269,7 @@ def request_oauth_token(token_endpoint, data, client_id=None, client_secret=None
     except RequestException as exc:
         raise UserError(f"OAuth token request failed: {exc}") from exc
     if response.status_code >= 400:
-        raise UserError(f"OAuth token error {response.status_code}: {(response.text or '')[:500]}")
+        raise UserError(
+            f"OAuth token error {response.status_code}: {(response.text or '')[:500]}"
+        )
     return response.json()

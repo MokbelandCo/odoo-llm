@@ -64,7 +64,9 @@ class MCPController(http.Controller):
         method = request.dispatcher.jsonrequest.get("method")
         request_id = request.dispatcher.request_id
         params = request.params or {}
-        request.mcp_request_id = str(request_id) if request_id is not None else "notification"
+        request.mcp_request_id = (
+            str(request_id) if request_id is not None else "notification"
+        )
         _logger.info(
             "MCP request started method=%s request_id=%s session_id=%s "
             "protocol=%s user_agent=%s accept=%s remote=%s",

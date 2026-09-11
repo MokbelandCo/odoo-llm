@@ -3,9 +3,9 @@ from urllib.parse import urlparse
 
 from jinja2 import Template
 from mcp.types import (
+    LATEST_PROTOCOL_VERSION,
     Implementation,
     InitializeResult,
-    LATEST_PROTOCOL_VERSION,
     ServerCapabilities,
     ToolsCapability,
 )
@@ -287,7 +287,9 @@ class LLMMCPServerConfig(models.Model):
             "supported_protocol_versions": self.all_supported_protocol_versions,
             "oauth_enabled": self.oauth_enabled,
             "allow_api_key": self.allow_api_key,
-            "authorization_server": self.get_oauth_issuer() if self.oauth_enabled else None,
+            "authorization_server": self.get_oauth_issuer()
+            if self.oauth_enabled
+            else None,
             "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }
 
@@ -358,7 +360,9 @@ class LLMMCPServerConfig(models.Model):
             hostname = "localhost"
 
         host_slug = re.sub(r"[^a-z0-9]+", "-", hostname.lower()).strip("-")
-        db_slug = re.sub(r"[^a-z0-9]+", "-", dbname.lower()).strip("-") if dbname else ""
+        db_slug = (
+            re.sub(r"[^a-z0-9]+", "-", dbname.lower()).strip("-") if dbname else ""
+        )
 
         parts = ["odoo", host_slug]
         if db_slug:
