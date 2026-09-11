@@ -1,13 +1,9 @@
-19.0.1.2.1 (2026-09-10)
+17.0.1.4.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * [FIX] OAuth authorize/error pages no longer crash with ``KeyError: 'website'`` when Website is installed
 * [FIX] Authorization redirects now build the callback URL (``urlunparse`` was not imported)
 * [ADD] HTTP tests for the login-gated consent page, allow/deny, and PKCE token exchange
-
-19.0.1.2.0 (2026-09-09)
-~~~~~~~~~~~~~~~~~~~~~~~
-
 * [ADD] OAuth 2.1 for the MCP HTTP resource server (RFC 9728 / 8414 / 7591 / 8707)
 * [ADD] Protected resource and authorization server well-known metadata
 * [ADD] Authorization code + PKCE, refresh tokens, client credentials, and DCR
