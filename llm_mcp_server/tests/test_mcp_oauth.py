@@ -1,5 +1,6 @@
 """MCP OAuth 2.1 tests for metadata, tokens, PKCE, and bearer auth."""
 
+import json
 import secrets
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -92,6 +93,13 @@ class TestMcpOauthModels(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMcpOauthHttp(HttpCase):
+    def _url_open_json(self, url, payload, headers=None):
+        return self.url_open(
+            url,
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json", **(headers or {})},
+        )
+
     def test_well_known_metadata(self):
         response = self.url_open("/.well-known/oauth-protected-resource/mcp")
         self.assertEqual(response.status_code, 200)
@@ -107,9 +115,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertIn("authorization_code", as_body["grant_types_supported"])
 
     def test_dynamic_client_registration_and_client_credentials(self):
-        register = self.url_open(
+        register = self._url_open_json(
             "/mcp/oauth/register",
-            json={
+            {
                 "client_name": "Http Test Client",
                 "redirect_uris": ["http://127.0.0.1:9/callback"],
                 "grant_types": ["client_credentials", "authorization_code", "refresh_token"],
@@ -146,9 +154,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(token_response.status_code, 200, token_response.text)
         token = token_response.json()["access_token"]
 
-        initialize = self.url_open(
+        initialize = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
@@ -167,9 +175,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(initialize.status_code, 200, initialize.text)
         session_id = initialize.headers.get("Mcp-Session-Id")
 
-        tools = self.url_open(
+        tools = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tools/list",
@@ -186,9 +194,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertIn("tools", tools.json()["result"])
 
     def test_tools_list_without_token_advertises_resource_metadata(self):
-        response = self.url_open(
+        response = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "id": 9,
                 "method": "tools/list",
@@ -386,9 +394,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(token_response.status_code, 200, token_response.text)
         access_token = token_response.json()["access_token"]
 
-        initialize = self.url_open(
+        initialize = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
