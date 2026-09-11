@@ -1,3 +1,5 @@
+import json
+
 from odoo.tests import HttpCase, TransactionCase, tagged
 
 
@@ -19,14 +21,21 @@ class TestMcpProtocolConfiguration(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMcpInitializeHandshake(HttpCase):
+    def _url_open_json(self, url, payload, headers=None):
+        return self.url_open(
+            url,
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json", **(headers or {})},
+        )
+
     def test_chatgpt_protocol_reaches_initialized_state(self):
         config = self.env["llm.mcp.server.config"].get_active_config()
         self.assertEqual(config.mode, "stateful")
         self.assertTrue(config.is_protocol_version_supported("2025-11-25"))
 
-        initialize_response = self.url_open(
+        initialize_response = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
@@ -50,9 +59,9 @@ class TestMcpInitializeHandshake(HttpCase):
         )
         session_id = initialize_response.headers["Mcp-Session-Id"]
 
-        initialized_response = self.url_open(
+        initialized_response = self._url_open_json(
             "/mcp",
-            json={
+            {
                 "jsonrpc": "2.0",
                 "method": "notifications/initialized",
                 "params": {},
