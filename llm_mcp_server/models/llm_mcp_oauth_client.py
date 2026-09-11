@@ -38,10 +38,13 @@ class LLMMCPOauthClient(models.Model):
     )
     active = fields.Boolean(default=True)
 
-    _client_id_unique = models.Constraint(
-        "unique(client_id)",
-        "OAuth client_id must be unique.",
-    )
+    _sql_constraints = [
+        (
+            "client_id_unique",
+            "unique(client_id)",
+            "OAuth client_id must be unique.",
+        ),
+    ]
 
     @api.constrains("redirect_uris")
     def _check_redirect_uris(self):
