@@ -11,7 +11,7 @@ letta-client
 llama_index
 markdown2
 markdownify
-mcp>=1.0,<2
+mcp<2
 mistralai
 nltk
 numpy

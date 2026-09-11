@@ -120,7 +120,11 @@ class TestMcpOauthHttp(HttpCase):
             {
                 "client_name": "Http Test Client",
                 "redirect_uris": ["http://127.0.0.1:9/callback"],
-                "grant_types": ["client_credentials", "authorization_code", "refresh_token"],
+                "grant_types": [
+                    "client_credentials",
+                    "authorization_code",
+                    "refresh_token",
+                ],
                 "token_endpoint_auth_method": "client_secret_post",
             },
         )
@@ -214,13 +218,17 @@ class TestMcpOauthHttp(HttpCase):
 
     def test_authorization_code_token_exchange(self):
         verifier, challenge = _pkce_pair()
-        client = self.env["llm.mcp.oauth.client"].sudo().create(
-            {
-                "name": "Code Client",
-                "redirect_uris": ["http://127.0.0.1:9/callback"],
-                "grant_types": ["authorization_code", "refresh_token"],
-                "token_endpoint_auth_method": "none",
-            }
+        client = (
+            self.env["llm.mcp.oauth.client"]
+            .sudo()
+            .create(
+                {
+                    "name": "Code Client",
+                    "redirect_uris": ["http://127.0.0.1:9/callback"],
+                    "grant_types": ["authorization_code", "refresh_token"],
+                    "token_endpoint_auth_method": "none",
+                }
+            )
         )
         config = self.env["llm.mcp.server.config"].sudo().get_active_config()
         resource = canonical_resource_uri(config.get_mcp_server_url())
@@ -256,14 +264,20 @@ class TestMcpOauthHttp(HttpCase):
         self.assertTrue(body["refresh_token"])
         self.assertEqual(canonical_resource_uri(body["resource"]), resource)
 
-    def _authorize_client(self, redirect_uri="http://127.0.0.1:9/callback", name="Browser Client"):
-        return self.env["llm.mcp.oauth.client"].sudo().create(
-            {
-                "name": name,
-                "redirect_uris": [redirect_uri],
-                "grant_types": ["authorization_code", "refresh_token"],
-                "token_endpoint_auth_method": "none",
-            }
+    def _authorize_client(
+        self, redirect_uri="http://127.0.0.1:9/callback", name="Browser Client"
+    ):
+        return (
+            self.env["llm.mcp.oauth.client"]
+            .sudo()
+            .create(
+                {
+                    "name": name,
+                    "redirect_uris": [redirect_uri],
+                    "grant_types": ["authorization_code", "refresh_token"],
+                    "token_endpoint_auth_method": "none",
+                }
+            )
         )
 
     def _authorize_params(self, client, challenge, redirect_uri=None, extra=None):
@@ -334,7 +348,10 @@ class TestMcpOauthHttp(HttpCase):
             "code_challenge": challenge,
             "code_challenge_method": "S256",
             "resource": canonical_resource_uri(
-                self.env["llm.mcp.server.config"].sudo().get_active_config().get_mcp_server_url()
+                self.env["llm.mcp.server.config"]
+                .sudo()
+                .get_active_config()
+                .get_mcp_server_url()
             ),
             "state": "oauth_s_unknown",
         }
@@ -413,9 +430,7 @@ class TestMcpOauthHttp(HttpCase):
             },
         )
         self.assertEqual(initialize.status_code, 200, initialize.text)
-        self.assertEqual(
-            initialize.json()["result"]["protocolVersion"], "2025-11-25"
-        )
+        self.assertEqual(initialize.json()["result"]["protocolVersion"], "2025-11-25")
 
     def test_authorize_consent_deny_redirects_with_access_denied(self):
         self.authenticate("admin", "admin")

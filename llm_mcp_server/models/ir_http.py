@@ -36,13 +36,17 @@ class IrHttp(models.AbstractModel):
         token = (
             request.env["llm.mcp.oauth.token"]
             .sudo()
-            .search([("access_token", "=", token_value), ("revoked", "=", False)], limit=1)
+            .search(
+                [("access_token", "=", token_value), ("revoked", "=", False)], limit=1
+            )
         )
         if not token:
             return None
         expected_resource = canonical_resource_uri(config.get_mcp_server_url())
         if not token.is_access_valid(expected_resource):
-            cls._mcp_unauthorized("OAuth access token is invalid, expired, or not for this MCP server")
+            cls._mcp_unauthorized(
+                "OAuth access token is invalid, expired, or not for this MCP server"
+            )
         if not token.user_id or not token.user_id.active:
             cls._mcp_unauthorized("OAuth token user is inactive")
         request.update_env(user=token.user_id.id)

@@ -56,14 +56,14 @@ class LLMMCPSession(models.Model):
         for session in self:
             if session.state == "initialized":
                 session.initialization_diagnostic = "Initialization completed."
-            elif session.state == "initializing" and session.last_method == "initialize":
+            elif (
+                session.state == "initializing" and session.last_method == "initialize"
+            ):
                 session.initialization_diagnostic = (
                     "Waiting for the client to send notifications/initialized."
                 )
             elif session.state == "initializing":
-                session.initialization_diagnostic = (
-                    "The client continued without completing the initialized notification."
-                )
+                session.initialization_diagnostic = "The client continued without completing the initialized notification."
             else:
                 session.initialization_diagnostic = "Initialize has not completed."
 

@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from odoo import fields

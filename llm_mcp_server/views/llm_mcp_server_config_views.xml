@@ -31,7 +31,10 @@
                             <field name="mode" />
                             <field name="oauth_enabled" />
                             <field name="allow_api_key" />
-                            <field name="oauth_issuer_url" placeholder="Leave empty to use this Odoo database" />
+                            <field
+                name="oauth_issuer_url"
+                placeholder="Leave empty to use this Odoo database"
+              />
                         </group>
                         <group>
                             <field
@@ -166,8 +169,8 @@
                     </notebook>
                 </sheet>
             <div class="oe_chatter">
-                <field name="message_follower_ids"/>
-                <field name="message_ids"/>
+                <field name="message_follower_ids" />
+                <field name="message_ids" />
             </div>
             </form>
         </field>

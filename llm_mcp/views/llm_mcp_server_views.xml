@@ -24,41 +24,41 @@
             <form string="MCP Server">
                 <header>
                     <button
-                        name="start_server"
-                        string="Start Server"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="is_connected"
-                    />
+            name="start_server"
+            string="Start Server"
+            type="object"
+            class="oe_highlight"
+            invisible="is_connected"
+          />
                     <button
-                        name="stop_server"
-                        string="Stop Server"
-                        type="object"
-                        invisible="not is_connected"
-                    />
+            name="stop_server"
+            string="Stop Server"
+            type="object"
+            invisible="not is_connected"
+          />
                     <button
-                        name="list_tools"
-                        string="Refresh Tools"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="not is_connected"
-                    />
+            name="list_tools"
+            string="Refresh Tools"
+            type="object"
+            class="oe_highlight"
+            invisible="not is_connected"
+          />
                     <button
-                        name="action_oauth_authorize"
-                        string="Authorize"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="transport != 'http' or auth_type != 'oauth' or oauth_grant_type != 'authorization_code'"
-                    />
+            name="action_oauth_authorize"
+            string="Authorize"
+            type="object"
+            class="oe_highlight"
+            invisible="transport != 'http' or auth_type != 'oauth' or oauth_grant_type != 'authorization_code'"
+          />
                 </header>
                 <sheet>
                     <div class="oe_title">
                         <label for="name" class="oe_edit_only" />
                         <h1>
                             <field
-                                name="name"
-                                placeholder="e.g. Python Code Service"
-                            />
+                name="name"
+                placeholder="e.g. Python Code Service"
+              />
                         </h1>
                     </div>
                     <group>
@@ -66,65 +66,65 @@
                             <field name="transport" />
                             <field name="is_connected" readonly="1" />
                             <field name="is_active" />
-                            <field name="auth_type" invisible="transport != 'http'" />
+                            <field
+                name="auth_type"
+                invisible="transport != 'http'"
+              />
                         </group>
                         <group
-                            string="Command Configuration"
-                            invisible="transport != 'stdio'"
-                        >
+              string="Command Configuration"
+              invisible="transport != 'stdio'"
+            >
                             <field
-                                name="command"
-                                required="transport == 'stdio'"
-                            />
+                name="command"
+                required="transport == 'stdio'"
+              />
                             <field name="args" />
                         </group>
-                        <group
-                            string="HTTP"
-                            invisible="transport != 'http'"
-                        >
+                        <group string="HTTP" invisible="transport != 'http'">
                             <field
-                                name="url"
-                                required="transport == 'http'"
-                                placeholder="https://example.com/mcp"
-                            />
+                name="url"
+                required="transport == 'http'"
+                placeholder="https://example.com/mcp"
+              />
                             <field
-                                name="bearer_token"
-                                password="True"
-                                invisible="auth_type != 'bearer'"
-                            />
+                name="bearer_token"
+                password="True"
+                invisible="auth_type != 'bearer'"
+              />
                             <field
-                                name="oauth_grant_type"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_grant_type"
+                invisible="auth_type != 'oauth'"
+              />
                             <field
-                                name="oauth_client_id"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_client_id"
+                invisible="auth_type != 'oauth'"
+              />
                             <field
-                                name="oauth_client_secret"
-                                password="True"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_client_secret"
+                password="True"
+                invisible="auth_type != 'oauth'"
+              />
                             <field
-                                name="oauth_scope"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_scope"
+                invisible="auth_type != 'oauth'"
+              />
                             <field
-                                name="oauth_token_expiry"
-                                readonly="1"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_token_expiry"
+                readonly="1"
+                invisible="auth_type != 'oauth'"
+              />
                             <field
-                                name="oauth_issuer"
-                                readonly="1"
-                                invisible="auth_type != 'oauth'"
-                            />
+                name="oauth_issuer"
+                readonly="1"
+                invisible="auth_type != 'oauth'"
+              />
                         </group>
                     </group>
                     <group
-                        string="Server Information"
-                        invisible="not is_connected"
-                    >
+            string="Server Information"
+            invisible="not is_connected"
+          >
                         <field name="protocol_version" readonly="1" />
                         <field name="server_info" readonly="1" />
                     </group>
@@ -157,21 +157,21 @@
             <search string="Search MCP Servers">
                 <field name="name" />
                 <filter
-                    string="Active Servers"
-                    name="active"
-                    domain="[('is_active', '=', True)]"
-                />
+          string="Active Servers"
+          name="active"
+          domain="[('is_active', '=', True)]"
+        />
                 <filter
-                    string="Connected"
-                    name="connected"
-                    domain="[('is_connected', '=', True)]"
-                />
+          string="Connected"
+          name="connected"
+          domain="[('is_connected', '=', True)]"
+        />
                 <group expand="0" string="Group By">
                     <filter
-                        string="Transport"
-                        name="group_by_transport"
-                        context="{'group_by': 'transport'}"
-                    />
+            string="Transport"
+            name="group_by_transport"
+            context="{'group_by': 'transport'}"
+          />
                 </group>
             </search>
         </field>

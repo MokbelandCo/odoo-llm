@@ -16,7 +16,9 @@ class LLMMCPOauthClient(models.Model):
     _order = "create_date desc"
 
     name = fields.Char(required=True, default="MCP Client")
-    client_id = fields.Char(required=True, index=True, copy=False, default=lambda self: new_token(16))
+    client_id = fields.Char(
+        required=True, index=True, copy=False, default=lambda self: new_token(16)
+    )
     client_secret_hash = fields.Char(copy=False)
     is_confidential = fields.Boolean(default=False)
     token_endpoint_auth_method = fields.Selection(
@@ -29,7 +31,9 @@ class LLMMCPOauthClient(models.Model):
         required=True,
     )
     redirect_uris = fields.Json(default=list)
-    grant_types = fields.Json(default=lambda self: ["authorization_code", "refresh_token"])
+    grant_types = fields.Json(
+        default=lambda self: ["authorization_code", "refresh_token"]
+    )
     response_types = fields.Json(default=lambda self: ["code"])
     scope = fields.Char(default=MCP_OAUTH_SCOPE)
     service_user_id = fields.Many2one(
@@ -86,7 +90,9 @@ class LLMMCPOauthClient(models.Model):
             "response_types": self.response_types or [],
             "token_endpoint_auth_method": self.token_endpoint_auth_method,
             "scope": self.scope or MCP_OAUTH_SCOPE,
-            "client_id_issued_at": int(self.create_date.timestamp()) if self.create_date else None,
+            "client_id_issued_at": int(self.create_date.timestamp())
+            if self.create_date
+            else None,
         }
         if client_secret:
             payload["client_secret"] = client_secret

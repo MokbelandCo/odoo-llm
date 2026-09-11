@@ -19,7 +19,9 @@ class LLMMCPOauthAuthorizationCode(models.Model):
     _order = "create_date desc"
 
     code = fields.Char(required=True, index=True, copy=False)
-    client_id = fields.Many2one("llm.mcp.oauth.client", required=True, ondelete="cascade")
+    client_id = fields.Many2one(
+        "llm.mcp.oauth.client", required=True, ondelete="cascade"
+    )
     user_id = fields.Many2one("res.users", required=True, ondelete="cascade")
     redirect_uri = fields.Char(required=True)
     code_challenge = fields.Char(required=True)
@@ -39,10 +41,14 @@ class LLMMCPOauthAuthorizationCode(models.Model):
             return False
         if not resource_uris_match(self.resource, resource):
             return False
-        return verify_pkce(code_verifier, self.code_challenge, self.code_challenge_method)
+        return verify_pkce(
+            code_verifier, self.code_challenge, self.code_challenge_method
+        )
 
     @api.model
-    def issue(self, client, user, redirect_uri, code_challenge, method, resource, scope):
+    def issue(
+        self, client, user, redirect_uri, code_challenge, method, resource, scope
+    ):
         return self.sudo().create(
             {
                 "code": new_token(24),
@@ -65,7 +71,9 @@ class LLMMCPOauthToken(models.Model):
 
     access_token = fields.Char(required=True, index=True, copy=False)
     refresh_token = fields.Char(index=True, copy=False)
-    client_id = fields.Many2one("llm.mcp.oauth.client", required=True, ondelete="cascade")
+    client_id = fields.Many2one(
+        "llm.mcp.oauth.client", required=True, ondelete="cascade"
+    )
     user_id = fields.Many2one("res.users", required=True, ondelete="cascade")
     resource = fields.Char(required=True)
     scope = fields.Char(default=MCP_OAUTH_SCOPE)

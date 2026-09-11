@@ -1,10 +1,10 @@
+import base64
 import json
 import logging
 import secrets
 from datetime import timedelta
-from urllib.parse import urlencode, urlparse
 from hashlib import sha256
-import base64
+from urllib.parse import urlencode, urlparse
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -144,7 +144,9 @@ class LLMMCPServer(models.Model):
         self.ensure_one()
         expires = False
         if payload.get("expires_in"):
-            expires = fields.Datetime.now() + timedelta(seconds=int(payload["expires_in"]))
+            expires = fields.Datetime.now() + timedelta(
+                seconds=int(payload["expires_in"])
+            )
         self.write(
             {
                 "oauth_access_token": payload.get("access_token"),
@@ -161,7 +163,9 @@ class LLMMCPServer(models.Model):
         )
         issuers = prm.get("authorization_servers") or []
         if not issuers:
-            raise UserError(_("Protected resource metadata did not list an authorization server."))
+            raise UserError(
+                _("Protected resource metadata did not list an authorization server.")
+            )
         issuer = issuers[0]
         as_meta = discover_authorization_server_metadata(issuer)
         self.write(
@@ -196,7 +200,9 @@ class LLMMCPServer(models.Model):
             return
         if self.oauth_grant_type == "client_credentials":
             if not self.oauth_client_id or not self.oauth_client_secret:
-                raise UserError(_("OAuth client ID and secret are required for client credentials."))
+                raise UserError(
+                    _("OAuth client ID and secret are required for client credentials.")
+                )
             payload = request_oauth_token(
                 self.oauth_token_endpoint,
                 {
@@ -212,19 +218,25 @@ class LLMMCPServer(models.Model):
             self._store_token_response(payload)
             return
         raise UserError(
-            _("No OAuth token is stored. Use Authorize to complete the authorization code flow.")
+            _(
+                "No OAuth token is stored. Use Authorize to complete the authorization code flow."
+            )
         )
 
     def action_oauth_authorize(self):
         """Start the OAuth authorization code + PKCE flow in the browser."""
         self.ensure_one()
         if self.transport != "http" or self.auth_type != "oauth":
-            raise UserError(_("OAuth authorization is only available for HTTP OAuth clients."))
+            raise UserError(
+                _("OAuth authorization is only available for HTTP OAuth clients.")
+            )
         if self.oauth_grant_type != "authorization_code":
             raise UserError(_("Set the grant type to Authorization Code + PKCE first."))
         as_meta = self._discover_oauth_endpoints()
         if not as_meta.get("authorization_endpoint"):
-            raise UserError(_("Authorization server did not advertise an authorization endpoint."))
+            raise UserError(
+                _("Authorization server did not advertise an authorization endpoint.")
+            )
         verifier = secrets.token_urlsafe(64)
         digest = sha256(verifier.encode("ascii")).digest()
         challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
@@ -284,61 +296,61 @@ class LLMMCPServer(models.Model):
             return True
 
         if self.transport == "stdio":
-            try:
-                manager = self._get_manager()
-                if not manager:
-                    raise UserError(f"Failed to create manager for server {self.name}")
-
-                if not manager._start_process():
-                    raise UserError(f"Failed to start process for server {self.name}")
-
-                if not manager._initialized:
-                    if not manager._initialize_mcp():
-                        raise UserError(
-                            f"Failed to initialize MCP protocol for server {self.name}"
-                        )
-
-                tools = manager.list_tools()
-                if tools is None:
-                    raise UserError(f"Failed to retrieve tools from server {self.name}")
-
-                self.is_connected = True
-                self._update_tools(tools)
-
-                if getattr(manager, "protocol_version", None):
-                    self.protocol_version = manager.protocol_version
-                if getattr(manager, "server_info", None):
-                    self.server_info = json.dumps(manager.server_info or {})
-
-                return True
-            except Exception as e:
-                MCPBusManager.discard(self.id)
-                error_msg = f"Failed to start MCP server {self.name}: {str(e)}"
-                _logger.error(error_msg)
-                raise UserError(error_msg) from e
-        elif self.transport == "http":
-            try:
-                if self.auth_type == "oauth" and not self.oauth_access_token:
-                    self._refresh_oauth_token()
-                client = self._get_http_client()
-                if not client.initialize():
-                    raise UserError(f"Failed to initialize MCP HTTP server {self.name}")
-                tools = client.list_tools()
-                self.is_connected = True
-                self._update_tools(tools)
-                if client.protocol_version:
-                    self.protocol_version = client.protocol_version
-                if client.server_info:
-                    self.server_info = json.dumps(client.server_info or {})
-                return True
-            except Exception as e:
-                MCPHttpClient.discard(self.id)
-                error_msg = f"Failed to start MCP HTTP server {self.name}: {str(e)}"
-                _logger.error(error_msg)
-                raise UserError(error_msg) from e
-        elif self.transport == "internal":
+            return self._start_stdio_server()
+        if self.transport == "http":
+            return self._start_http_server()
+        if self.transport == "internal":
             self.is_connected = True
             return True
+
+    def _start_stdio_server(self):
+        try:
+            manager = self._get_manager()
+            if not manager:
+                raise UserError(f"Failed to create manager for server {self.name}")
+            if not manager._start_process():
+                raise UserError(f"Failed to start process for server {self.name}")
+            if not manager._initialized and not manager._initialize_mcp():
+                raise UserError(
+                    f"Failed to initialize MCP protocol for server {self.name}"
+                )
+            tools = manager.list_tools()
+            if tools is None:
+                raise UserError(f"Failed to retrieve tools from server {self.name}")
+
+            self.is_connected = True
+            self._update_tools(tools)
+            if getattr(manager, "protocol_version", None):
+                self.protocol_version = manager.protocol_version
+            if getattr(manager, "server_info", None):
+                self.server_info = json.dumps(manager.server_info or {})
+            return True
+        except Exception as e:
+            MCPBusManager.discard(self.id)
+            error_msg = f"Failed to start MCP server {self.name}: {str(e)}"
+            _logger.error(error_msg)
+            raise UserError(error_msg) from e
+
+    def _start_http_server(self):
+        try:
+            if self.auth_type == "oauth" and not self.oauth_access_token:
+                self._refresh_oauth_token()
+            client = self._get_http_client()
+            if not client.initialize():
+                raise UserError(f"Failed to initialize MCP HTTP server {self.name}")
+            tools = client.list_tools()
+            self.is_connected = True
+            self._update_tools(tools)
+            if client.protocol_version:
+                self.protocol_version = client.protocol_version
+            if client.server_info:
+                self.server_info = json.dumps(client.server_info or {})
+            return True
+        except Exception as e:
+            MCPHttpClient.discard(self.id)
+            error_msg = f"Failed to start MCP HTTP server {self.name}: {str(e)}"
+            _logger.error(error_msg)
+            raise UserError(error_msg) from e
 
     def stop_server(self):
         """Stop the server and disconnect from it"""
@@ -407,7 +419,9 @@ class LLMMCPServer(models.Model):
                 self._update_tools(tools)
                 return self.tool_ids
             except Exception as e:
-                error_msg = f"Error listing tools from HTTP server {self.name}: {str(e)}"
+                error_msg = (
+                    f"Error listing tools from HTTP server {self.name}: {str(e)}"
+                )
                 _logger.error(error_msg)
                 raise UserError(error_msg) from e
         elif self.transport == "internal":
@@ -458,7 +472,9 @@ class LLMMCPServer(models.Model):
                 updated_tools.append(tool.id)
 
         tools_to_delete = [
-            tool for name, tool in existing_tools.items() if tool.id not in updated_tools
+            tool
+            for name, tool in existing_tools.items()
+            if tool.id not in updated_tools
         ]
         if tools_to_delete:
             Tool.browse([t.id for t in tools_to_delete]).unlink()
@@ -504,7 +520,9 @@ class LLMMCPServer(models.Model):
                     )
                 return result
             except Exception as e:
-                error_msg = f"Error executing tool {tool_name} on MCP HTTP server: {str(e)}"
+                error_msg = (
+                    f"Error executing tool {tool_name} on MCP HTTP server: {str(e)}"
+                )
                 _logger.error(error_msg)
                 return {"error": str(e)}
         elif self.transport == "internal":
