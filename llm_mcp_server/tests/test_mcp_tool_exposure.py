@@ -127,6 +127,8 @@ class TestMcpToolExposure(TransactionCase):
                 "external_url": url,
             }
         )
-        duplicates = self.Config.search([("external_url", "=", url)])
+        duplicates = self.Config.with_context(active_test=False).search(
+            [("external_url", "=", url)]
+        )
         self.assertGreaterEqual(len(duplicates), 2)
         extra.unlink()
