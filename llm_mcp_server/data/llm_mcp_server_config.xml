@@ -13,6 +13,7 @@
 
         <!-- Server Mode Configuration -->
         <field name="mode">stateful</field>
+        <field name="tool_mode">all</field>
         <field name="oauth_enabled" eval="True"/>
         <field name="allow_api_key" eval="True"/>
 

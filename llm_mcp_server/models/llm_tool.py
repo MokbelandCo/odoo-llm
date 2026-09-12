@@ -17,12 +17,14 @@ class LLMTool(models.Model):
 
         The search runs without sudo() so that the record rules defined on the
         ``category`` field decide which tools the bearer-authenticated user
-        is allowed to see.
+        is allowed to see. The active MCP server config may further restrict
+        the list to a selected subset.
         """
-        active_tools = self.search([("active", "=", True)])
+        config = self.env["llm.mcp.server.config"].get_active_config()
+        exposed_tools = config.get_exposed_tools()
         mcp_tools = []
 
-        for tool in active_tools:
+        for tool in exposed_tools:
             # Get tool definition as dict
             tool_definition = tool.get_tool_definition()
             # Convert to MCP Tool object
@@ -45,7 +47,8 @@ class LLMTool(models.Model):
 
         # Find the tool by name
         tool = self.search([("name", "=", tool_name), ("active", "=", True)], limit=1)
-        if not tool:
+        config = self.env["llm.mcp.server.config"].get_active_config()
+        if not tool or not config.is_tool_exposed(tool):
             raise UserError(_("Tool '%s' not found or inactive") % tool_name)
 
         try:

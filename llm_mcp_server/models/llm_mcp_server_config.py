@@ -135,6 +135,27 @@ class LLMMCPServerConfig(models.Model):
         help="Server operation mode",
     )
 
+    tool_mode = fields.Selection(
+        [
+            ("all", "All Tools"),
+            ("selected", "Selected Tools"),
+        ],
+        string="Exposed Tools",
+        default="all",
+        required=True,
+        tracking=True,
+        help="All: expose every active llm.tool the authenticated user can access. "
+        "Selected: expose only the tools listed below (still subject to record rules).",
+    )
+    tool_ids = fields.Many2many(
+        "llm.tool",
+        "llm_mcp_server_config_tool_rel",
+        "config_id",
+        "tool_id",
+        string="Tools",
+        help="Tools this MCP server exposes when Exposed Tools is set to Selected.",
+    )
+
     @api.constrains("active")
     def _check_single_active_record(self):
         """Ensure only one config record can be active at a time"""
@@ -152,6 +173,29 @@ class LLMMCPServerConfig(models.Model):
         if not config:
             raise ValidationError("No active MCP Server configuration found.")
         return config
+
+    def get_exposed_tools(self):
+        """Return active ``llm.tool`` records this config may advertise or execute.
+
+        Search runs without sudo() so ``llm.tool`` record rules still apply.
+        """
+        self.ensure_one()
+        Tool = self.env["llm.tool"]
+        domain = [("active", "=", True)]
+        if self.tool_mode == "selected":
+            if not self.tool_ids:
+                return Tool.browse()
+            domain.append(("id", "in", self.tool_ids.ids))
+        return Tool.search(domain)
+
+    def is_tool_exposed(self, tool):
+        """Whether ``tool`` is allowed by this config's exposure setting."""
+        self.ensure_one()
+        if not tool or not tool.active:
+            return False
+        if self.tool_mode == "all":
+            return True
+        return tool in self.tool_ids
 
     def get_base_url(self):
         """Public origin used in OAuth metadata (no trailing slash)."""
@@ -287,6 +331,7 @@ class LLMMCPServerConfig(models.Model):
             "supported_protocol_versions": self.all_supported_protocol_versions,
             "oauth_enabled": self.oauth_enabled,
             "allow_api_key": self.allow_api_key,
+            "tool_mode": self.tool_mode,
             "authorization_server": self.get_oauth_issuer() if self.oauth_enabled else None,
             "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }

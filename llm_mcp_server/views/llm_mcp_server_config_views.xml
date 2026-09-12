@@ -45,6 +45,30 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Tools" name="tools">
+                            <group>
+                                <field name="tool_mode" />
+                            </group>
+                            <p class="text-muted">
+                                All Tools exposes every active llm.tool the authenticated
+                                user can access. Selected Tools exposes only the tools
+                                listed here. Record rules still apply in both modes.
+                            </p>
+                            <field
+                name="tool_ids"
+                invisible="tool_mode != 'selected'"
+                nolabel="1"
+                options="{'no_create': True}"
+              >
+                                <list>
+                                    <field name="name" />
+                                    <field name="title" />
+                                    <field name="description" />
+                                    <field name="category" />
+                                    <field name="active" />
+                                </list>
+                            </field>
+                        </page>
                         <page
               string="Client Configuration"
               name="client_config"
@@ -180,6 +204,7 @@
                 <field name="version" />
                 <field name="latest_protocol_version" />
                 <field name="all_supported_protocol_versions" />
+                <field name="tool_mode" />
                 <field name="active" />
                 <field name="write_date" />
             </list>
@@ -222,7 +247,8 @@
             </p>
             <p>
                 Configure the Model Context Protocol (MCP) server settings including server name, version, and protocol version.
-                Only one configuration can be active at a time.
+                Only one configuration can be active at a time. Each configuration
+                can expose all tools or a selected subset.
             </p>
         </field>
     </record>

@@ -52,7 +52,7 @@ odoo-bin -d your_db -i llm_mcp_server
 | **External AI** | 🤖 Claude Desktop, Cursor, etc. |
 | **Secure**      | 🔐 API key authentication       |
 | **Standard**    | 📡 MCP protocol (Anthropic)     |
-| **All Tools**   | 🛠️ Exposes all Odoo LLM tools   |
+| **Tools**       | 🛠️ All tools, or a selected subset |
 
 ### Common Setups
 

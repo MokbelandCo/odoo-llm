@@ -62,7 +62,7 @@ Why Use This Module?
 +-----------------+---------------------------------+
 | **Standard**    | 📡 MCP protocol (Anthropic)     |
 +-----------------+---------------------------------+
-| **All Tools**   | 🛠️ Exposes all Odoo LLM tools   |
+| **Tools**       | 🛠️ All tools, or a selected subset |
 +-----------------+---------------------------------+
 
 Common Setups

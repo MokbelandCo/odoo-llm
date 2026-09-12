@@ -1,3 +1,9 @@
+19.0.1.3.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Per-config MCP tool exposure: all active tools, or a selected subset
+* [IMP] ``tools/list`` and ``tools/call`` honor the active config allowlist
+
 19.0.1.2.1 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

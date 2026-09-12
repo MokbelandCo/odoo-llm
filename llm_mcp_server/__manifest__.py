@@ -1,6 +1,6 @@
 {
     "name": "LLM MCP Server",
-    "version": "19.0.1.2.1",
+    "version": "19.0.1.3.0",
     "category": "Technical",
     "summary": "MCP server exposing Odoo LLM tools to Claude Desktop and other MCP hosts",
     "description": """
@@ -13,7 +13,7 @@
         • MCP 2025-11-25 protocol compatibility with JSON-RPC 2.0
         • Bearer authentication with OAuth 2.1 and Odoo API keys
         • Stateful session management with concurrent request handling
-        • Automatic tool discovery from llm.tool registry
+        • Automatic tool discovery from llm.tool registry, with optional per-config allowlist
         • Real-time tool execution with proper Odoo context
         • Health monitoring and protocol version negotiation
         • Production-ready with optimized logging and error handling
