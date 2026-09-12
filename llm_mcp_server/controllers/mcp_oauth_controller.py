@@ -24,8 +24,14 @@ def _oauth_error(error, description, status=400):
 
 
 class MCPOAuthController(http.Controller):
-    def _config(self):
-        return request.env["llm.mcp.server.config"].sudo().get_active_config()
+    def _config(self, resource=None, endpoint_path=None):
+        Config = request.env["llm.mcp.server.config"].sudo()
+        resource = resource or request.params.get("resource")
+        if resource:
+            return Config.get_config_for_resource(resource)
+        if endpoint_path:
+            return Config.get_config_for_request(endpoint_path)
+        return Config.get_active_config()
 
     def _cors_json(self, payload, status=200):
         response = _json_response(payload, status=status)
@@ -39,6 +45,7 @@ class MCPOAuthController(http.Controller):
         [
             "/.well-known/oauth-protected-resource",
             "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-protected-resource/mcp/<string:server_name>",
         ],
         type="http",
         auth="public",
@@ -46,8 +53,9 @@ class MCPOAuthController(http.Controller):
         csrf=False,
         cors="*",
     )
-    def protected_resource_metadata(self, **kwargs):
-        config = self._config()
+    def protected_resource_metadata(self, server_name=None, **kwargs):
+        endpoint_path = f"/mcp/{server_name}" if server_name else "/mcp"
+        config = self._config(endpoint_path=endpoint_path)
         if not config.oauth_enabled:
             return self._cors_json(
                 {"error": "oauth_disabled", "error_description": "OAuth is disabled"},
@@ -286,10 +294,25 @@ class MCPOAuthController(http.Controller):
         cors="*",
     )
     def token(self, **kwargs):
-        config = self._config()
+        client, client_secret, params = self._extract_client()
+        resource = params.get("resource")
+        if not resource and params.get("grant_type") == "authorization_code":
+            code = (
+                request.env["llm.mcp.oauth.authorization.code"]
+                .sudo()
+                .search([("code", "=", params.get("code"))], limit=1)
+            )
+            resource = code.resource
+        if not resource and params.get("grant_type") == "refresh_token":
+            token = (
+                request.env["llm.mcp.oauth.token"]
+                .sudo()
+                .search([("refresh_token", "=", params.get("refresh_token"))], limit=1)
+            )
+            resource = token.resource
+        config = self._config(resource=resource)
         if not config.oauth_enabled:
             return _oauth_error("invalid_request", "OAuth is disabled", status=404)
-        client, client_secret, params = self._extract_client()
         if not client:
             return _oauth_error("invalid_client", "Unknown client_id", status=401)
         if client.is_confidential and not client.check_secret(client_secret):

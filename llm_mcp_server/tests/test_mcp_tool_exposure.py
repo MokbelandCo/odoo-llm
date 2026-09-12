@@ -87,21 +87,19 @@ class TestMcpToolExposure(TransactionCase):
         with self.assertRaises(UserError):
             self.Tool.execute_mcp_tool({"name": "mcp_exposure_tool_b", "arguments": {}})
 
-    def test_only_one_config_can_be_active(self):
+    def test_multiple_configs_can_be_active_with_independent_tools(self):
         extra = self.Config.create(
             {
                 "name": "second_mcp_config",
                 "version": "1.0.0",
                 "latest_protocol_version": "2025-11-25",
-                "active": False,
+                "active": True,
+                "endpoint_path": "/mcp/second",
                 "mode": "stateful",
                 "tool_mode": "selected",
                 "tool_ids": [(6, 0, [self.tool_b.id])],
             }
         )
-        with self.assertRaises(ValidationError):
-            extra.active = True
-
         self.config.write(
             {
                 "tool_mode": "selected",
@@ -109,9 +107,60 @@ class TestMcpToolExposure(TransactionCase):
             }
         )
         self.assertEqual(
-            self.Config.get_active_config().get_exposed_tools().mapped("name"),
+            self.Config.get_config_for_request("/mcp").get_exposed_tools().mapped("name"),
             ["mcp_exposure_tool_a"],
         )
+        self.assertEqual(
+            self.Config.get_config_for_request("/mcp/second")
+            .get_exposed_tools()
+            .mapped("name"),
+            ["mcp_exposure_tool_b"],
+        )
+        default_list = self.Tool.with_context(
+            mcp_server_config_id=self.config.id
+        ).get_mcp_tools_list()
+        extra_list = self.Tool.with_context(
+            mcp_server_config_id=extra.id
+        ).get_mcp_tools_list()
+        self.assertEqual([tool.name for tool in default_list.tools], [self.tool_a.name])
+        self.assertEqual([tool.name for tool in extra_list.tools], [self.tool_b.name])
+        extra.unlink()
+
+    def test_endpoint_paths_are_unique_and_valid(self):
+        values = {
+            "name": "invalid_mcp_config",
+            "version": "1.0.0",
+            "latest_protocol_version": "2025-11-25",
+            "active": True,
+            "mode": "stateful",
+        }
+        with self.assertRaises(ValidationError):
+            self.Config.create({**values, "endpoint_path": "/not-mcp"})
+        with self.assertRaises(ValidationError):
+            self.Config.create({**values, "endpoint_path": "/mcp/Uppercase"})
+
+    def test_sessions_are_scoped_to_their_server(self):
+        extra = self.Config.create(
+            {
+                "name": "session_mcp_config",
+                "version": "1.0.0",
+                "latest_protocol_version": "2025-11-25",
+                "active": True,
+                "endpoint_path": "/mcp/sessions",
+                "mode": "stateful",
+            }
+        )
+        Session = self.env["llm.mcp.session"]
+        session = Session.create_new_session(server_config=extra)
+        self.assertEqual(session.server_config_id, extra)
+        self.assertEqual(
+            Session.get_session(session.session_id, server_config=extra),
+            session,
+        )
+        self.assertFalse(
+            Session.get_session(session.session_id, server_config=self.config)
+        )
+        session.unlink()
         extra.unlink()
 
     def test_external_url_is_not_unique(self):

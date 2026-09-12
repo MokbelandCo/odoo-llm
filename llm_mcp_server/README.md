@@ -143,6 +143,25 @@ http_headers.Authorization = "Bearer YOUR_API_KEY"
 
 **Other MCP clients**: Connect to `http://localhost:8069/mcp`. HTTP clients that implement MCP OAuth 2.1 discover the authorization server from `/.well-known/oauth-protected-resource/mcp`. API keys remain supported as `Authorization: Bearer YOUR_API_KEY`.
 
+### Multiple MCP Servers
+
+Create any number of MCP Server Configuration records. Every active record is
+served independently at its unique **Endpoint Path**:
+
+- `/mcp` — legacy/default server
+- `/mcp/sales` — a sales-only server
+- `/mcp/admin` — an administrative server
+
+Each record controls its own server identity/version, protocol versions,
+stateful/stateless mode, OAuth/API-key policy, external base URL, and exposed
+tools. Sessions and OAuth tokens are scoped to the endpoint that created them;
+a session or resource token for one endpoint cannot be reused on another.
+
+The complete public URL combines **External URL** (or `web.base.url` when
+empty) with **Endpoint Path**. For example, external URL
+`https://odoo.example.com` and path `/mcp/sales` produce
+`https://odoo.example.com/mcp/sales`.
+
 ### 4. Restart & Test
 
 Restart your AI client, then ask: "What tools do you have?"
@@ -167,7 +186,7 @@ Every Odoo user can connect their own AI client independently:
 
 - **Protocol**: MCP 2025-06-18 spec via JSON-RPC 2.0
 - **Transport**: `streamable-http` (HTTP with streaming responses)
-- **Endpoint**: `/mcp` (POST for requests, streaming responses)
+- **Endpoints**: one unique path per active config (`/mcp`, `/mcp/sales`, etc.)
 - **Auth**: OAuth 2.1 (recommended for HTTP) or Bearer API keys
 - **Tools**: Auto-discovered from `llm.tool` registry
 
@@ -175,7 +194,7 @@ Every Odoo user can connect their own AI client independently:
 
 1. Client sends JSON-RPC request to `/mcp` via POST
 2. Server validates Bearer token → loads user session
-3. For `tools/list`: Returns all active tools user can access
+3. For `tools/list`: Returns tools allowed by that endpoint config and user access
 4. For `tools/call`: Executes tool with user's permissions
 5. Response streamed back via HTTP streaming
 

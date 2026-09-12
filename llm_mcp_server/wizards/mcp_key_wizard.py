@@ -26,7 +26,14 @@ class APIKeyDescriptionMCP(models.TransientModel):
 
         # Get MCP config and generate client configs with actual API key
         try:
-            config = self.env["llm.mcp.server.config"].get_active_config()
+            config_id = self.env.context.get("mcp_server_config_id")
+            config = (
+                self.env["llm.mcp.server.config"].browse(config_id).exists()
+                if config_id
+                else self.env["llm.mcp.server.config"].get_active_config()
+            )
+            if not config:
+                raise ValidationError("MCP Server configuration not found.")
         except ValidationError:
             # No active MCP config, create temporary one for URL generation
             config = self.env["llm.mcp.server.config"].new({})

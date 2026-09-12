@@ -33,6 +33,15 @@ class LLMMCPSession(models.Model):
         index=True,
         help="User associated with session, set when Bearer token is available",
     )
+    server_config_id = fields.Many2one(
+        "llm.mcp.server.config",
+        string="MCP Server",
+        required=True,
+        index=True,
+        ondelete="cascade",
+        default=lambda self: self.env["llm.mcp.server.config"].get_active_config(),
+        help="Server endpoint that owns this session.",
+    )
 
     # Client data
     client_capabilities = fields.Json(
@@ -86,8 +95,8 @@ class LLMMCPSession(models.Model):
             return False
 
     @api.model
-    def get_session(self, session_id):
-        """Get existing session by ID and optional user_id"""
+    def get_session(self, session_id, server_config=None):
+        """Get an existing session, optionally scoped to its server endpoint."""
         if not session_id:
             return self.browse()
 
@@ -97,11 +106,13 @@ class LLMMCPSession(models.Model):
 
         # Build search domain
         domain = [("session_id", "=", session_id)]
+        if server_config:
+            domain.append(("server_config_id", "=", server_config.id))
 
         return self.search(domain, limit=1)
 
     @api.model
-    def create_new_session(self, user_id=None):
+    def create_new_session(self, user_id=None, server_config=None):
         """Create a new session for initialize method (only for stateful mode)"""
         # Always generate a new session_id
         session_id = self.generate_session_id()
@@ -110,6 +121,9 @@ class LLMMCPSession(models.Model):
         session_vals = {
             "session_id": session_id,
             "state": "not_initialized",
+            "server_config_id": (
+                server_config or self.env["llm.mcp.server.config"].get_active_config()
+            ).id,
         }
         if user_id:
             session_vals["user_id"] = user_id

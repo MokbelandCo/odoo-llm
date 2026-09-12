@@ -1,3 +1,10 @@
+19.0.1.4.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Serve multiple active MCP configurations at unique endpoint paths
+* [ADD] Bind protocol, authentication, sessions, OAuth resources, and tools to the requested endpoint
+* [IMP] Preserve ``/mcp`` as the legacy/default endpoint while supporting paths such as ``/mcp/sales``
+
 19.0.1.3.0 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

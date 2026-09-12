@@ -39,6 +39,10 @@
                 placeholder="e.g., http://host.docker.internal:8069"
               />
                             <field
+                name="endpoint_path"
+                placeholder="e.g., /mcp/sales"
+              />
+                            <field
                 name="client_name"
                 placeholder="e.g., odoo-localhost-mydb (auto-generated if empty)"
               />
@@ -204,6 +208,7 @@
                 <field name="version" />
                 <field name="latest_protocol_version" />
                 <field name="all_supported_protocol_versions" />
+                <field name="endpoint_path" />
                 <field name="tool_mode" />
                 <field name="active" />
                 <field name="write_date" />
@@ -220,6 +225,7 @@
                 <field name="name" />
                 <field name="version" />
                 <field name="latest_protocol_version" />
+                <field name="endpoint_path" />
                 <field name="all_supported_protocol_versions" />
                 <filter
           string="Active"
@@ -246,9 +252,9 @@
                 Configure MCP Server Settings
             </p>
             <p>
-                Configure the Model Context Protocol (MCP) server settings including server name, version, and protocol version.
-                Only one configuration can be active at a time. Each configuration
-                can expose all tools or a selected subset.
+                Configure independently served Model Context Protocol (MCP)
+                endpoints. Every active configuration has a unique URL path and
+                can use its own protocol, authentication, session, and tool settings.
             </p>
         </field>
     </record>

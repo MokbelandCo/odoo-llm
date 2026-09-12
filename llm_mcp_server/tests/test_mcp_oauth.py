@@ -106,6 +106,24 @@ class TestMcpOauthHttp(HttpCase):
         self.assertIn("S256", as_body["code_challenge_methods_supported"])
         self.assertIn("authorization_code", as_body["grant_types_supported"])
 
+    def test_named_server_has_distinct_protected_resource_metadata(self):
+        config = self.env["llm.mcp.server.config"].create(
+            {
+                "name": "Named OAuth Server",
+                "version": "1.0.0",
+                "latest_protocol_version": "2025-11-25",
+                "endpoint_path": "/mcp/oauth-test",
+                "active": True,
+                "oauth_enabled": True,
+            }
+        )
+        response = self.url_open(
+            "/.well-known/oauth-protected-resource/mcp/oauth-test"
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["resource"].endswith("/mcp/oauth-test"))
+        config.unlink()
+
     def test_dynamic_client_registration_and_client_credentials(self):
         register = self.url_open(
             "/mcp/oauth/register",

@@ -158,6 +158,18 @@ This generates an API key with ready-to-copy client configurations.
 
 **Other clients**: Connect to ``http://localhost:8069/mcp`` with Bearer auth
 
+Multiple MCP Servers
+~~~~~~~~~~~~~~~~~~~~
+
+Create any number of MCP Server Configuration records. Every active record is
+served independently at its unique **Endpoint Path**, for example ``/mcp``,
+``/mcp/sales``, or ``/mcp/admin``. Each endpoint has its own server identity,
+protocol versions, state mode, authentication policy, external base URL, and
+tool selection. Sessions and OAuth resources are scoped to their endpoint.
+
+The complete URL combines **External URL** (or ``web.base.url``) and
+**Endpoint Path**.
+
 4. Restart & Test
 ~~~~~~~~~~~~~~~~~
 
@@ -175,7 +187,7 @@ Architecture
 
 - **Protocol**: MCP 2025-06-18 spec via JSON-RPC 2.0
 - **Transport**: ``streamable-http`` (HTTP with streaming responses)
-- **Endpoint**: ``/mcp`` (POST for requests, streaming responses)
+- **Endpoints**: one unique path per active config (``/mcp``, ``/mcp/sales``, etc.)
 - **Auth**: Bearer token (Odoo API keys)
 - **Tools**: Auto-discovered from ``llm.tool`` registry
 
@@ -184,7 +196,7 @@ Request Flow
 
 1. Client sends JSON-RPC request to ``/mcp`` via POST
 2. Server validates Bearer token → loads user session
-3. For ``tools/list``: Returns all active tools user can access
+3. For ``tools/list``: Returns tools allowed by that endpoint and user access
 4. For ``tools/call``: Executes tool with user's permissions
 5. Response streamed back via HTTP streaming
 

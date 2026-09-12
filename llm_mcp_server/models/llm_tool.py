@@ -12,6 +12,13 @@ class LLMTool(models.Model):
     _inherit = "llm.tool"
 
     @api.model
+    def _get_mcp_server_config(self):
+        config_id = self.env.context.get("mcp_server_config_id")
+        if config_id:
+            return self.env["llm.mcp.server.config"].browse(config_id).exists()
+        return self.env["llm.mcp.server.config"].get_active_config()
+
+    @api.model
     def get_mcp_tools_list(self, params=None):
         """Handle MCP tools/list request - return MCP ListToolsResult
 
@@ -20,7 +27,7 @@ class LLMTool(models.Model):
         is allowed to see. The active MCP server config may further restrict
         the list to a selected subset.
         """
-        config = self.env["llm.mcp.server.config"].get_active_config()
+        config = self._get_mcp_server_config()
         exposed_tools = config.get_exposed_tools()
         mcp_tools = []
 
@@ -47,7 +54,7 @@ class LLMTool(models.Model):
 
         # Find the tool by name
         tool = self.search([("name", "=", tool_name), ("active", "=", True)], limit=1)
-        config = self.env["llm.mcp.server.config"].get_active_config()
+        config = self._get_mcp_server_config()
         if not tool or not config.is_tool_exposed(tool):
             raise UserError(_("Tool '%s' not found or inactive") % tool_name)
 

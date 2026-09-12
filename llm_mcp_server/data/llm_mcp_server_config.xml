@@ -10,6 +10,7 @@
             eval="['2025-06-18', '2025-03-26', '2024-11-05']"
         />
         <field name="active" eval="True" />
+        <field name="endpoint_path">/mcp</field>
 
         <!-- Server Mode Configuration -->
         <field name="mode">stateful</field>

@@ -16,7 +16,11 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _mcp_unauthorized(cls, message, error="invalid_token"):
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = (
+            request.env["llm.mcp.server.config"]
+            .sudo()
+            .get_config_for_request()
+        )
         challenge = WWWAuthenticate(
             "bearer",
             {
@@ -30,7 +34,11 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _mcp_authenticate_oauth_token(cls, token_value):
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = (
+            request.env["llm.mcp.server.config"]
+            .sudo()
+            .get_config_for_request()
+        )
         if not config.oauth_enabled:
             return None
         token = (
@@ -59,7 +67,11 @@ class IrHttp(models.AbstractModel):
         if header.lower().startswith("bearer "):
             token_value = header[7:].strip()
 
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = (
+            request.env["llm.mcp.server.config"]
+            .sudo()
+            .get_config_for_request()
+        )
 
         if not token_value:
             cls._mcp_unauthorized(
