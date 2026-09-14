@@ -139,6 +139,23 @@ class TestMcpToolExposure(TransactionCase):
         with self.assertRaises(ValidationError):
             self.Config.create({**values, "endpoint_path": "/mcp/Uppercase"})
 
+    def test_session_default_does_not_require_active_legacy_config(self):
+        """Upgrade backfills ``server_config_id`` via the field default.
+
+        That default must not call ``get_active_config()``, which raises when
+        nothing active serves ``/mcp``.
+        """
+        self.config.active = False
+        defaults = self.env["llm.mcp.session"].default_get(["server_config_id"])
+        self.assertEqual(defaults.get("server_config_id"), self.config.id)
+
+        self.env["llm.mcp.session"].search([]).unlink()
+        self.Config.with_context(active_test=False).search([]).unlink()
+        defaults = self.env["llm.mcp.session"].default_get(["server_config_id"])
+        self.assertFalse(defaults.get("server_config_id"))
+        with self.assertRaises(ValidationError):
+            self.Config.get_active_config()
+
     def test_sessions_are_scoped_to_their_server(self):
         extra = self.Config.create(
             {

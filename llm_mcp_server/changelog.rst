@@ -1,3 +1,11 @@
+19.0.1.4.1 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Module upgrade no longer fails when leftover MCP sessions exist but no
+  active config serves ``/mcp``
+* [FIX] Pre-migrate existing configs onto unique endpoint paths (legacy ``/mcp``
+  first) and backfill or drop sessions before the new required column is set
+
 19.0.1.4.0 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

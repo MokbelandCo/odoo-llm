@@ -211,7 +211,12 @@ class LLMMCPServerConfig(models.Model):
 
     @api.model
     def get_active_config(self):
-        """Compatibility helper returning the active config at ``/mcp``."""
+        """Compatibility helper returning the active config at ``/mcp``.
+
+        Raises when that endpoint is missing. Do not use as a field default:
+        Odoo evaluates defaults while initializing new required columns
+        during module upgrade, before XML data is loaded.
+        """
         config = self.search(
             [("active", "=", True), ("endpoint_path", "=", "/mcp")],
             limit=1,

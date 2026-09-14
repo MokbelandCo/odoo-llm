@@ -39,7 +39,7 @@ class LLMMCPSession(models.Model):
         required=True,
         index=True,
         ondelete="cascade",
-        default=lambda self: self.env["llm.mcp.server.config"].get_active_config(),
+        default=lambda self: self._default_server_config_id(),
         help="Server endpoint that owns this session.",
     )
 
@@ -76,6 +76,21 @@ class LLMMCPSession(models.Model):
                 )
             else:
                 session.initialization_diagnostic = "Initialize has not completed."
+
+    @api.model
+    def _default_server_config_id(self):
+        """Best-effort config for new sessions and module-upgrade column init.
+
+        Odoo evaluates this default in ``_init_column`` whenever
+        ``llm.mcp.session`` already has rows and ``server_config_id`` is new
+        or becoming required. ``get_active_config()`` raises when nothing
+        serves ``/mcp``, which would abort ``-u llm_mcp_server``.
+        """
+        Config = self.env["llm.mcp.server.config"].with_context(active_test=False)
+        return Config.search(
+            [("endpoint_path", "=", "/mcp")],
+            limit=1,
+        ) or Config.search([], limit=1)
 
     @api.model
     def generate_session_id(self):
