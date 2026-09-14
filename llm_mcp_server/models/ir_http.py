@@ -21,15 +21,16 @@ class IrHttp(models.AbstractModel):
             .sudo()
             .get_config_for_request()
         )
-        challenge = WWWAuthenticate(
-            "bearer",
-            {
-                "realm": "mcp",
-                "resource_metadata": config.get_resource_metadata_url(),
-                "error": error,
-                "error_description": (message or "")[:200],
-            },
-        )
+        challenge_parameters = {
+            "realm": "mcp",
+            "error": error,
+            "error_description": (message or "")[:200],
+        }
+        if config.oauth_enabled:
+            challenge_parameters["resource_metadata"] = (
+                config.get_resource_metadata_url()
+            )
+        challenge = WWWAuthenticate("bearer", challenge_parameters)
         raise Unauthorized(message, www_authenticate=challenge)
 
     @classmethod

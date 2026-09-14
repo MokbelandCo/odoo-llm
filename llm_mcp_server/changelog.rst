@@ -1,3 +1,11 @@
+19.0.1.6.0 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Per-server Protected MCP Endpoint and Protected Operations Only policies
+* [IMP] Authenticate centrally in the MCP dispatcher with fail-closed defaults
+  for future methods
+* [MIG] Preserve operations-only behavior for existing server configurations
+
 19.0.1.5.0 (2026-09-14)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

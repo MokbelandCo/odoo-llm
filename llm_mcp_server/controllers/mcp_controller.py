@@ -35,16 +35,6 @@ class MCPInitializeResponse(BaseModel):
     session_id: Optional[str] = None
 
 
-def requires_bearer_auth(handler_func):
-    """Decorator that applies MCP bearer authentication (OAuth token or API key)."""
-
-    def wrapper(self, *args, **kwargs):
-        request.env["ir.http"]._auth_method_mcp_bearer()
-        return handler_func(self, *args, **kwargs)
-
-    return wrapper
-
-
 class MCPController(http.Controller):
     """
     Ultra-thin MCP Server Controller following Odoo best practices.
@@ -181,8 +171,16 @@ class MCPController(http.Controller):
         )
         # For stateful mode, create new session
         if config.mode == "stateful":
+            authenticated_user_id = (
+                request.env.user.id
+                if config.authentication_policy == "protected"
+                and request.env.user
+                and not request.env.user._is_public()
+                else None
+            )
             session = request.env["llm.mcp.session"].sudo().create_new_session(
-                server_config=config
+                user_id=authenticated_user_id,
+                server_config=config,
             )
 
             # Store client information in session
@@ -244,7 +242,6 @@ class MCPController(http.Controller):
         self._record_current_session_request("ping", request_id)
         return {}
 
-    @requires_bearer_auth
     def _mcp_tools_list(self, params, request_id):
         """Handle tools/list method"""
         self._record_current_session_request("tools/list", request_id)
@@ -255,7 +252,6 @@ class MCPController(http.Controller):
             .get_mcp_tools_list(params=params)
         )
 
-    @requires_bearer_auth
     def _mcp_tools_call(self, params, request_id):
         """Handle tools/call method"""
         # Get session ID from headers if available

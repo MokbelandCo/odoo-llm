@@ -9,7 +9,7 @@ The MCP server implements a stateful JSON-RPC 2.0 server that bridges MCP client
 - **MCPController**: HTTP endpoint handler (`/mcp`)
 - **MCPSession**: Session state management model
 - **MCPServerConfig**: Server configuration model
-- **Bearer Auth**: API key authentication decorator
+- **Bearer Auth**: Central OAuth/API-key authentication policy in the MCP dispatcher
 
 ## Request Flow
 
@@ -76,8 +76,16 @@ stateDiagram-v2
 
 ### Authentication Flow
 
-- `tools/call` requires Bearer authentication
-- Session user_id updated on first authenticated request
+- **Protected MCP Endpoint** authenticates every protocol request before
+  protocol and session validation. An unauthenticated `initialize` therefore
+  returns an HTTP 401 Bearer challenge rather than a JSON-RPC error.
+- **Protected Operations Only** uses an explicit public allowlist containing
+  `initialize`, `notifications/initialized`, and `ping`; every other current or
+  future MCP method defaults to protected.
+- Bearer authentication accepts OAuth access tokens first and Odoo API keys
+  when API-key access is enabled.
+- A stateful protected endpoint binds the authenticated user to the session
+  when `initialize` creates it.
 - Tools execute with authenticated user's Odoo permissions
 
 ### Error Handling
@@ -96,6 +104,8 @@ stateDiagram-v2
 ## Configuration
 
 - **Mode**: Stateful (recommended) vs Stateless
+- **Authentication Policy**: Protected endpoint (recommended) vs public
+  negotiation with protected operations
 - **Protocol Version**: Auto-negotiation with MCP 2025-06-18 support
 - **External URL**: Override for Docker/container environments
 - **Endpoint Path**: Unique served path (`/mcp` or `/mcp/<name>`)
@@ -108,7 +118,10 @@ canonical resource URL, preventing cross-endpoint reuse.
 
 ## Security Model
 
-- Bearer token authentication via Odoo's `res.users.apikeys`
+- Bearer token authentication via OAuth 2.1 or Odoo's `res.users.apikeys`
+- HTTP 401 challenges advertise server-specific RFC 9728 metadata only when
+  OAuth is enabled
+- Protected endpoints must enable at least one authentication mechanism
 - User context binding: `request.update_env(user=authenticated_user)`
 - ACL enforcement: Tools respect Odoo's permission system
 - Session isolation: Each session tracks its endpoint and user context

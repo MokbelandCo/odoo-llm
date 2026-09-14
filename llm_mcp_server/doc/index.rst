@@ -170,6 +170,30 @@ tool selection. Sessions and OAuth resources are scoped to their endpoint.
 The complete URL combines **External URL** (or ``web.base.url``) and
 **Endpoint Path**.
 
+Authentication Policies
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Each server independently chooses an **Authentication Policy**:
+
+- **Protected MCP Endpoint** (recommended for private servers such as
+  mokbelhealth) requires Bearer authentication for every MCP request, including
+  ``initialize``, ``notifications/initialized``, and ``ping``.
+- **Protected Operations Only** keeps protocol negotiation public for backward
+  compatibility. Only ``initialize``, ``notifications/initialized``, and
+  ``ping`` are explicitly public; all other current and future methods default
+  to protected.
+
+New records default to Protected MCP Endpoint. Existing records migrate to
+Protected Operations Only during upgrade to preserve deployed integrations.
+OAuth and API-key settings select the accepted Bearer credential types. A
+protected endpoint must enable OAuth or API keys.
+
+An OAuth-capable client first receives ``401 Unauthorized`` and a
+``WWW-Authenticate: Bearer`` challenge containing the endpoint-specific
+``resource_metadata`` URL. It then discovers protected-resource and
+authorization-server metadata, completes authorization with PKCE, obtains an
+access token, and retries ``initialize`` with that token.
+
 4. Restart & Test
 ~~~~~~~~~~~~~~~~~
 

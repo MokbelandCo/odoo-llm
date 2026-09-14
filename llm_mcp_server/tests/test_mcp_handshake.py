@@ -19,6 +19,12 @@ class TestMcpProtocolConfiguration(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMcpInitializeHandshake(HttpCase):
+    def setUp(self):
+        super().setUp()
+        self.env["llm.mcp.server.config"].get_active_config().authentication_policy = (
+            "operations"
+        )
+
     def _initialize(self, path):
         return self.url_open(
             path,
@@ -101,6 +107,7 @@ class TestMcpInitializeHandshake(HttpCase):
                 "endpoint_path": "/mcp/sales",
                 "mode": "stateless",
                 "active": True,
+                "authentication_policy": "operations",
                 "tool_mode": "selected",
             }
         )
