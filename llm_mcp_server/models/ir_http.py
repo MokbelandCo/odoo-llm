@@ -16,11 +16,7 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _mcp_unauthorized(cls, message, error="invalid_token"):
-        config = (
-            request.env["llm.mcp.server.config"]
-            .sudo()
-            .get_config_for_request()
-        )
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
         challenge_parameters = {
             "realm": "mcp",
             "error": error,
@@ -35,23 +31,23 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _mcp_authenticate_oauth_token(cls, token_value):
-        config = (
-            request.env["llm.mcp.server.config"]
-            .sudo()
-            .get_config_for_request()
-        )
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
         if not config.oauth_enabled:
             return None
         token = (
             request.env["llm.mcp.oauth.token"]
             .sudo()
-            .search([("access_token", "=", token_value), ("revoked", "=", False)], limit=1)
+            .search(
+                [("access_token", "=", token_value), ("revoked", "=", False)], limit=1
+            )
         )
         if not token:
             return None
         expected_resource = canonical_resource_uri(config.get_mcp_server_url())
         if not token.is_access_valid(expected_resource):
-            cls._mcp_unauthorized("OAuth access token is invalid, expired, or not for this MCP server")
+            cls._mcp_unauthorized(
+                "OAuth access token is invalid, expired, or not for this MCP server"
+            )
         if not token.user_id or not token.user_id.active:
             cls._mcp_unauthorized("OAuth token user is inactive")
         request.update_env(user=token.user_id.id)
@@ -68,11 +64,7 @@ class IrHttp(models.AbstractModel):
         if header.lower().startswith("bearer "):
             token_value = header[7:].strip()
 
-        config = (
-            request.env["llm.mcp.server.config"]
-            .sudo()
-            .get_config_for_request()
-        )
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
 
         if not token_value:
             cls._mcp_unauthorized(

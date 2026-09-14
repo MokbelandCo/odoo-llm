@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import HttpCase, TransactionCase, tagged
 
@@ -28,10 +29,14 @@ class TestMcpAuthenticationPolicyHttp(HttpCase):
         super().setUpClass()
         cls.config = cls.env["llm.mcp.server.config"].get_active_config()
         cls.admin = cls.env.ref("base.user_admin")
-        cls.api_key = cls.env["res.users.apikeys"].with_user(cls.admin)._generate(
-            scope="rpc",
-            name="MCP authentication policy tests",
-            expiration_date=datetime.now() + timedelta(days=1),
+        cls.api_key = (
+            cls.env["res.users.apikeys"]
+            .with_user(cls.admin)
+            ._generate(
+                scope="rpc",
+                name="MCP authentication policy tests",
+                expiration_date=fields.Datetime.now() + timedelta(days=1),
+            )
         )
 
     def setUp(self):
@@ -106,9 +111,7 @@ class TestMcpAuthenticationPolicyHttp(HttpCase):
                     response = self._request(
                         method,
                         request_id=(
-                            None
-                            if method == "notifications/initialized"
-                            else 1
+                            None if method == "notifications/initialized" else 1
                         ),
                     )
                     self._assert_bearer_challenge(
@@ -180,24 +183,18 @@ class TestMcpAuthenticationPolicyHttp(HttpCase):
                 response = self._request(
                     method,
                     authenticated=True,
-                    request_id=(
-                        None if method == "notifications/initialized" else 1
-                    ),
+                    request_id=(None if method == "notifications/initialized" else 1),
                     params=params,
                 )
                 self.assertIn(response.status_code, (200, 202), response.text)
 
     def test_operations_policy_only_exposes_explicit_public_methods(self):
-        self.config.write(
-            {"authentication_policy": "operations", "mode": "stateless"}
-        )
+        self.config.write({"authentication_policy": "operations", "mode": "stateless"})
         for method in ("initialize", "notifications/initialized", "ping"):
             with self.subTest(method=method):
                 response = self._request(
                     method,
-                    request_id=(
-                        None if method == "notifications/initialized" else 1
-                    ),
+                    request_id=(None if method == "notifications/initialized" else 1),
                     params=(
                         {"protocolVersion": "2025-11-25"}
                         if method == "initialize"

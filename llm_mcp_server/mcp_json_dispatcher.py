@@ -2,8 +2,9 @@
 Custom MCP Dispatcher for handling MCP-specific JSON-RPC requirements
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Optional
 
 import werkzeug.exceptions
 from mcp.types import (
@@ -94,11 +95,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         """
         Hybrid approach: peek at JSON for MCP validation, then let parent handle dispatch.
         """
-        config = (
-            request.env["llm.mcp.server.config"]
-            .sudo()
-            .get_config_for_request()
-        )
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
         method = None
         try:
             jsonrequest = self.request.get_json_data()
@@ -231,7 +228,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         return response
 
     def _validate_session_requirements(
-        self, method_name: str, session_id: Optional[str], config
+        self, method_name: str, session_id: str | None, config
     ):
         """
         Validate session requirements based on server mode and method
@@ -251,8 +248,10 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             if not session_id:
                 raise MCPSessionError("Missing mcp-session-id header", http_status=400)
 
-            session = request.env["llm.mcp.session"].sudo().get_session(
-                session_id, server_config=config
+            session = (
+                request.env["llm.mcp.session"]
+                .sudo()
+                .get_session(session_id, server_config=config)
             )
             if not session:
                 raise MCPSessionError("Session not found", http_status=404)
@@ -270,9 +269,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         Following MCP SDK pattern (lines 706-726)
         """
         # Get protocol version from headers
-        protocol_version = request.httprequest.headers.get(
-            MCP_PROTOCOL_VERSION_HEADER
-        )
+        protocol_version = request.httprequest.headers.get(MCP_PROTOCOL_VERSION_HEADER)
 
         # If no version provided, that's OK (we'll use default)
         if not protocol_version:

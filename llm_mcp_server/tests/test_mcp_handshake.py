@@ -21,9 +21,9 @@ class TestMcpProtocolConfiguration(TransactionCase):
 class TestMcpInitializeHandshake(HttpCase):
     def setUp(self):
         super().setUp()
-        self.env["llm.mcp.server.config"].get_active_config().authentication_policy = (
-            "operations"
-        )
+        self.env[
+            "llm.mcp.server.config"
+        ].get_active_config().authentication_policy = "operations"
 
     def _initialize(self, path):
         return self.url_open(
