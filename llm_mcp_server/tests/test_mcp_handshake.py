@@ -19,6 +19,25 @@ class TestMcpProtocolConfiguration(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMcpInitializeHandshake(HttpCase):
+    def _initialize(self, path):
+        return self.url_open(
+            path,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "route-test", "version": "1.0.0"},
+                },
+            },
+            headers={
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            },
+        )
+
     def test_chatgpt_protocol_reaches_initialized_state(self):
         config = self.env["llm.mcp.server.config"].get_active_config()
         self.assertEqual(config.mode, "stateful")
@@ -70,3 +89,37 @@ class TestMcpInitializeHandshake(HttpCase):
         self.assertEqual(session.state, "initialized")
         self.assertEqual(session.last_method, "notifications/initialized")
         self.assertEqual(session.request_count, 2)
+
+    def test_multiple_server_urls_resolve_independent_configs(self):
+        default = self.env["llm.mcp.server.config"].get_active_config()
+        default.write({"name": "default-server", "mode": "stateless"})
+        named = self.env["llm.mcp.server.config"].create(
+            {
+                "name": "sales-server",
+                "version": "2.0.0",
+                "latest_protocol_version": "2025-11-25",
+                "endpoint_path": "/mcp/sales",
+                "mode": "stateless",
+                "active": True,
+                "tool_mode": "selected",
+            }
+        )
+
+        default_response = self._initialize("/mcp")
+        named_response = self._initialize("/mcp/sales")
+        self.assertEqual(default_response.status_code, 200, default_response.text)
+        self.assertEqual(named_response.status_code, 200, named_response.text)
+        self.assertEqual(
+            default_response.json()["result"]["serverInfo"]["name"],
+            "default-server",
+        )
+        self.assertEqual(
+            named_response.json()["result"]["serverInfo"],
+            {"name": "sales-server", "version": "2.0.0"},
+        )
+
+        health = self.url_open("/mcp/sales/health")
+        self.assertEqual(health.status_code, 200, health.text)
+        self.assertEqual(health.json()["server"], "sales-server")
+        self.assertTrue(health.json()["endpoint"].endswith("/mcp/sales"))
+        named.unlink()

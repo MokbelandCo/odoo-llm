@@ -98,10 +98,17 @@ stateDiagram-v2
 - **Mode**: Stateful (recommended) vs Stateless
 - **Protocol Version**: Auto-negotiation with MCP 2025-06-18 support
 - **External URL**: Override for Docker/container environments
+- **Endpoint Path**: Unique served path (`/mcp` or `/mcp/<name>`)
+- **Tools**: All user-visible tools or a per-endpoint allowlist
+
+Multiple active configurations are supported. The request URL resolves the
+configuration before protocol validation or authentication. Stateful sessions
+store their owning configuration, and OAuth access tokens remain bound to the
+canonical resource URL, preventing cross-endpoint reuse.
 
 ## Security Model
 
 - Bearer token authentication via Odoo's `res.users.apikeys`
 - User context binding: `request.update_env(user=authenticated_user)`
 - ACL enforcement: Tools respect Odoo's permission system
-- Session isolation: Each session tracks its own user context
+- Session isolation: Each session tracks its endpoint and user context

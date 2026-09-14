@@ -1,4 +1,5 @@
 import re
+import uuid
 from urllib.parse import urlparse
 
 from jinja2 import Template
@@ -95,6 +96,14 @@ class LLMMCPServerConfig(models.Model):
         "Leave empty to auto-detect from web.base.url",
         tracking=True,
     )
+    endpoint_path = fields.Char(
+        string="Endpoint Path",
+        required=True,
+        default=lambda self: f"/mcp/{uuid.uuid4().hex[:8]}",
+        tracking=True,
+        help="Unique URL path served by this configuration. Use /mcp for the "
+        "legacy/default endpoint, or /mcp/<name> for additional servers.",
+    )
     client_name = fields.Char(
         string="Client Name",
         help="Name used to identify this MCP server in client configurations "
@@ -135,23 +144,106 @@ class LLMMCPServerConfig(models.Model):
         help="Server operation mode",
     )
 
-    @api.constrains("active")
-    def _check_single_active_record(self):
-        """Ensure only one config record can be active at a time"""
-        if self.active:
-            other_active = self.search([("id", "!=", self.id), ("active", "=", True)])
-            if other_active:
+    tool_mode = fields.Selection(
+        [
+            ("all", "All Tools"),
+            ("selected", "Selected Tools"),
+        ],
+        string="Exposed Tools",
+        default="all",
+        required=True,
+        tracking=True,
+        help="All: expose every active llm.tool the authenticated user can access. "
+        "Selected: expose only the tools listed below (still subject to record rules).",
+    )
+    tool_ids = fields.Many2many(
+        "llm.tool",
+        "llm_mcp_server_config_tool_rel",
+        "config_id",
+        "tool_id",
+        string="Tools",
+        help="Tools this MCP server exposes when Exposed Tools is set to Selected.",
+    )
+
+    _endpoint_path_unique = models.Constraint(
+        "UNIQUE(endpoint_path)",
+        "Each MCP Server configuration must have a unique endpoint path.",
+    )
+
+    @api.constrains("endpoint_path")
+    def _check_endpoint_path(self):
+        for config in self:
+            if not re.fullmatch(r"/mcp(?:/[a-z0-9][a-z0-9_-]*)?", config.endpoint_path or ""):
                 raise ValidationError(
-                    "Only one MCP Server configuration can be active at a time."
+                    "Endpoint Path must be /mcp or /mcp/<name>, using lowercase "
+                    "letters, numbers, underscores, or hyphens."
+                )
+            if config.endpoint_path in ("/mcp/health", "/mcp/oauth"):
+                raise ValidationError(
+                    "The endpoint names 'health' and 'oauth' are reserved."
                 )
 
     @api.model
-    def get_active_config(self):
-        """Get the active MCP server configuration"""
-        config = self.search([("active", "=", True)], limit=1)
+    def get_config_for_request(self, path=None):
+        """Resolve the active server config addressed by an HTTP request path."""
+        if path is None:
+            from odoo.http import request
+
+            path = request.httprequest.path
+        endpoint_path = (path or "").rstrip("/") or "/"
+        config = self.search(
+            [("active", "=", True), ("endpoint_path", "=", endpoint_path)],
+            limit=1,
+        )
         if not config:
-            raise ValidationError("No active MCP Server configuration found.")
+            raise ValidationError(
+                f"No active MCP Server configuration serves '{endpoint_path}'."
+            )
         return config
+
+    @api.model
+    def get_config_for_resource(self, resource=None):
+        """Resolve an active config from an OAuth resource URL."""
+        if not resource:
+            return self.get_active_config()
+        path = urlparse(resource).path
+        return self.get_config_for_request(path)
+
+    @api.model
+    def get_active_config(self):
+        """Compatibility helper returning the active config at ``/mcp``."""
+        config = self.search(
+            [("active", "=", True), ("endpoint_path", "=", "/mcp")],
+            limit=1,
+        )
+        if not config:
+            raise ValidationError(
+                "No active MCP Server configuration serves the legacy /mcp endpoint."
+            )
+        return config
+
+    def get_exposed_tools(self):
+        """Return active ``llm.tool`` records this config may advertise or execute.
+
+        Search runs without sudo() so ``llm.tool`` record rules still apply.
+        """
+        self.ensure_one()
+        Tool = self.env["llm.tool"]
+        domain = [("active", "=", True)]
+        if self.tool_mode == "selected":
+            if not self.tool_ids:
+                return Tool.browse()
+            domain.append(("id", "in", self.tool_ids.ids))
+        return Tool.search(domain)
+
+    def is_tool_exposed(self, tool):
+        """Whether ``tool`` is allowed by this config's exposure setting."""
+        self.ensure_one()
+        if not tool or not tool.active:
+            return False
+        if self.tool_mode == "all":
+            return True
+        return tool in self.tool_ids
 
     def get_base_url(self):
         """Public origin used in OAuth metadata (no trailing slash)."""
@@ -167,7 +259,8 @@ class LLMMCPServerConfig(models.Model):
 
     def get_mcp_server_url(self):
         """Get the MCP server URL that external clients can reach"""
-        return f"{self.get_base_url()}/mcp"
+        self.ensure_one()
+        return f"{self.get_base_url()}{self.endpoint_path}"
 
     def get_oauth_issuer(self):
         self.ensure_one()
@@ -177,7 +270,11 @@ class LLMMCPServerConfig(models.Model):
 
     def get_resource_metadata_url(self):
         """RFC 9728 path-aware protected resource metadata URL."""
-        return f"{self.get_base_url()}/.well-known/oauth-protected-resource/mcp"
+        self.ensure_one()
+        return (
+            f"{self.get_base_url()}/.well-known/oauth-protected-resource"
+            f"{self.endpoint_path}"
+        )
 
     def get_protected_resource_metadata(self):
         self.ensure_one()
@@ -187,7 +284,7 @@ class LLMMCPServerConfig(models.Model):
             "authorization_servers": [self.get_oauth_issuer()],
             "bearer_methods_supported": ["header"],
             "scopes_supported": [MCP_OAUTH_SCOPE],
-            "resource_documentation": f"{self.get_base_url()}/mcp/health",
+            "resource_documentation": f"{self.get_mcp_server_url()}/health",
         }
 
     def get_authorization_server_metadata(self):
@@ -281,12 +378,14 @@ class LLMMCPServerConfig(models.Model):
         return {
             "status": "healthy",
             "server": self.name,
+            "endpoint": self.get_mcp_server_url(),
             "version": self.version,
             "mode": self.mode,
             "default_protocol_version": self.get_default_protocol_version(),
             "supported_protocol_versions": self.all_supported_protocol_versions,
             "oauth_enabled": self.oauth_enabled,
             "allow_api_key": self.allow_api_key,
+            "tool_mode": self.tool_mode,
             "authorization_server": self.get_oauth_issuer() if self.oauth_enabled else None,
             "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }
@@ -301,6 +400,7 @@ class LLMMCPServerConfig(models.Model):
             "target": "new",
             "context": {
                 "is_mcp_key": True,
+                "mcp_server_config_id": self.id,
                 "default_name": "MCP Key",
             },
         }
@@ -322,7 +422,7 @@ class LLMMCPServerConfig(models.Model):
         help="Ready-to-use configuration for Codex CLI",
     )
 
-    @api.depends("external_url", "client_name")
+    @api.depends("external_url", "endpoint_path", "client_name")
     def _compute_client_configs(self):
         """Compute client configuration snippets with placeholder API key."""
         for record in self:

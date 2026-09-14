@@ -216,7 +216,11 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         if method_name and method_name.startswith("test"):
             return
 
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = (
+            request.env["llm.mcp.server.config"]
+            .sudo()
+            .get_config_for_request()
+        )
 
         protected_methods = {"tools/list", "tools/call"}
         if method_name in protected_methods:
@@ -235,7 +239,9 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             if not session_id:
                 raise MCPSessionError("Missing mcp-session-id header", http_status=400)
 
-            session = request.env["llm.mcp.session"].sudo().get_session(session_id)
+            session = request.env["llm.mcp.session"].sudo().get_session(
+                session_id, server_config=config
+            )
             if not session:
                 raise MCPSessionError("Session not found", http_status=404)
 
@@ -263,7 +269,11 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         # Get supported versions from config
         # Protocol validation occurs before bearer authentication. Configuration
         # is server metadata, so this read must not depend on public-user ACLs.
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = (
+            request.env["llm.mcp.server.config"]
+            .sudo()
+            .get_config_for_request()
+        )
 
         if not config.is_protocol_version_supported(protocol_version):
             supported_versions = config.get_supported_versions_string()
