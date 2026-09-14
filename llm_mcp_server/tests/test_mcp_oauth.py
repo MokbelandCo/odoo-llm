@@ -71,6 +71,42 @@ class TestMcpOauthModels(TransactionCase):
         self.assertTrue(client.check_secret("s3cret"))
         self.assertFalse(client.check_secret("nope"))
 
+    def test_generate_client_secret_shows_plaintext_once(self):
+        client = self.env["llm.mcp.oauth.client"].create({"name": "Secret Dialog"})
+        self.assertFalse(client.is_confidential)
+        self.assertEqual(client.token_endpoint_auth_method, "none")
+
+        action = client.action_generate_client_secret()
+        self.assertEqual(action["type"], "ir.actions.act_window")
+        self.assertEqual(action["res_model"], "llm.mcp.oauth.client.secret.show")
+        self.assertEqual(action["target"], "new")
+        secret = action["context"]["default_client_secret"]
+        self.assertTrue(secret)
+        self.assertEqual(action["context"]["default_client_id"], client.client_id)
+        self.assertEqual(
+            action["context"]["default_token_endpoint_auth_method"],
+            "client_secret_post",
+        )
+        self.assertTrue(client.is_confidential)
+        self.assertEqual(client.token_endpoint_auth_method, "client_secret_post")
+        self.assertTrue(client.check_secret(secret))
+        self.assertNotEqual(client.client_secret_hash, secret)
+
+        action = client.action_generate_client_secret()
+        rotated = action["context"]["default_client_secret"]
+        self.assertTrue(rotated)
+        self.assertNotEqual(rotated, secret)
+        self.assertFalse(client.check_secret(secret))
+        self.assertTrue(client.check_secret(rotated))
+
+        client.token_endpoint_auth_method = "client_secret_basic"
+        action = client.action_generate_client_secret()
+        self.assertEqual(client.token_endpoint_auth_method, "client_secret_basic")
+        self.assertEqual(
+            action["context"]["default_token_endpoint_auth_method"],
+            "client_secret_basic",
+        )
+
     def test_redirect_uri_with_params(self):
         url = redirect_uri_with_params(
             "https://chatgpt.com/connector/oauth/TcOKfq1os1i5",

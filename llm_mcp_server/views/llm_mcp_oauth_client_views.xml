@@ -19,13 +19,33 @@
         <field name="model">llm.mcp.oauth.client</field>
         <field name="arch" type="xml">
             <form string="MCP OAuth Client">
+                <header>
+                    <button
+                        name="action_generate_client_secret"
+                        type="object"
+                        string="Generate Secret"
+                        class="btn-primary"
+                        groups="llm.group_llm_manager"
+                        invisible="not id or is_confidential"
+                        confirm="The plaintext secret can be copied only once. Store it before closing the dialog. Public apps such as Cursor should keep None (public / PKCE)."
+                    />
+                    <button
+                        name="action_generate_client_secret"
+                        type="object"
+                        string="Rotate Secret"
+                        class="btn-secondary"
+                        groups="llm.group_llm_manager"
+                        invisible="not id or not is_confidential"
+                        confirm="This replaces the current secret. Callers must use the new value. The plaintext can be copied only once."
+                    />
+                </header>
                 <sheet>
                     <group>
                         <group>
                             <field name="name"/>
                             <field name="client_id"/>
                             <field name="token_endpoint_auth_method"/>
-                            <field name="is_confidential"/>
+                            <field name="is_confidential" readonly="1"/>
                             <field name="active"/>
                         </group>
                         <group>

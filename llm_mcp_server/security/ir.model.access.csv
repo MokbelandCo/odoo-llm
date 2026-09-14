@@ -9,3 +9,4 @@ access_llm_mcp_oauth_client_manager,llm.mcp.oauth.client manager,model_llm_mcp_o
 access_llm_mcp_oauth_client_user,llm.mcp.oauth.client user,model_llm_mcp_oauth_client,base.group_user,1,0,0,0
 access_llm_mcp_oauth_code_manager,llm.mcp.oauth.authorization.code manager,model_llm_mcp_oauth_authorization_code,llm.group_llm_manager,1,1,1,1
 access_llm_mcp_oauth_token_manager,llm.mcp.oauth.token manager,model_llm_mcp_oauth_token,llm.group_llm_manager,1,1,1,1
+access_llm_mcp_oauth_client_secret_show_manager,llm.mcp.oauth.client.secret.show manager,model_llm_mcp_oauth_client_secret_show,llm.group_llm_manager,1,0,1,0

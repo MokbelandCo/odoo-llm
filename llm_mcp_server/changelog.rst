@@ -1,3 +1,9 @@
+19.0.1.5.0 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Generate or rotate an OAuth client secret from the client form
+* [ADD] One-time copy dialog for the plaintext secret (hashed at rest)
+
 19.0.1.4.1 (2026-09-14)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
