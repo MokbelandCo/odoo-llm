@@ -5,11 +5,12 @@ Ultra-thin HTTP controller that routes requests to appropriate Odoo models
 following proper separation of concerns.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time
 from http import HTTPStatus
-from typing import Optional
 
 import werkzeug.exceptions
 from mcp.types import InitializeResult
@@ -32,17 +33,7 @@ class MCPInitializeResponse(BaseModel):
     """Wrapper for MCP initialize method response"""
 
     result: InitializeResult
-    session_id: Optional[str] = None
-
-
-def requires_bearer_auth(handler_func):
-    """Decorator that applies MCP bearer authentication (OAuth token or API key)."""
-
-    def wrapper(self, *args, **kwargs):
-        request.env["ir.http"]._auth_method_mcp_bearer()
-        return handler_func(self, *args, **kwargs)
-
-    return wrapper
+    session_id: str | None = None
 
 
 class MCPController(http.Controller):
@@ -69,7 +60,9 @@ class MCPController(http.Controller):
         method = request.dispatcher.jsonrequest.get("method")
         request_id = request.dispatcher.request_id
         params = request.params or {}
-        request.mcp_request_id = str(request_id) if request_id is not None else "notification"
+        request.mcp_request_id = (
+            str(request_id) if request_id is not None else "notification"
+        )
         _logger.info(
             "MCP request started method=%s request_id=%s session_id=%s "
             "protocol=%s user_agent=%s accept=%s remote=%s",
@@ -181,8 +174,20 @@ class MCPController(http.Controller):
         )
         # For stateful mode, create new session
         if config.mode == "stateful":
-            session = request.env["llm.mcp.session"].sudo().create_new_session(
-                server_config=config
+            authenticated_user_id = (
+                request.env.user.id
+                if config.authentication_policy == "protected"
+                and request.env.user
+                and not request.env.user._is_public()
+                else None
+            )
+            session = (
+                request.env["llm.mcp.session"]
+                .sudo()
+                .create_new_session(
+                    user_id=authenticated_user_id,
+                    server_config=config,
+                )
             )
 
             # Store client information in session
@@ -211,8 +216,10 @@ class MCPController(http.Controller):
         # Get session and transition to initialized state
         if session_id:
             config = self._get_request_config()
-            session = request.env["llm.mcp.session"].sudo().get_session(
-                session_id, server_config=config
+            session = (
+                request.env["llm.mcp.session"]
+                .sudo()
+                .get_session(session_id, server_config=config)
             )
 
             if session and session.state == "initializing":
@@ -244,7 +251,6 @@ class MCPController(http.Controller):
         self._record_current_session_request("ping", request_id)
         return {}
 
-    @requires_bearer_auth
     def _mcp_tools_list(self, params, request_id):
         """Handle tools/list method"""
         self._record_current_session_request("tools/list", request_id)
@@ -255,7 +261,6 @@ class MCPController(http.Controller):
             .get_mcp_tools_list(params=params)
         )
 
-    @requires_bearer_auth
     def _mcp_tools_call(self, params, request_id):
         """Handle tools/call method"""
         # Get session ID from headers if available
@@ -283,8 +288,10 @@ class MCPController(http.Controller):
         if not session_id:
             return
         config = self._get_request_config()
-        session = request.env["llm.mcp.session"].sudo().get_session(
-            session_id, server_config=config
+        session = (
+            request.env["llm.mcp.session"]
+            .sudo()
+            .get_session(session_id, server_config=config)
         )
         if session:
             self._record_session_request(session, method, request_id)
@@ -339,8 +346,4 @@ class MCPController(http.Controller):
         path = request.httprequest.path.rstrip("/")
         if strip_suffix and path.endswith(strip_suffix):
             path = path[: -len(strip_suffix)]
-        return (
-            request.env["llm.mcp.server.config"]
-            .sudo()
-            .get_config_for_request(path)
-        )
+        return request.env["llm.mcp.server.config"].sudo().get_config_for_request(path)

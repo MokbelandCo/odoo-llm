@@ -29,6 +29,7 @@
                 readonly="1"
               />
                             <field name="mode" />
+                            <field name="authentication_policy" />
                             <field name="oauth_enabled" />
                             <field name="allow_api_key" />
                             <field name="oauth_issuer_url" placeholder="Leave empty to use this Odoo database" />
@@ -48,6 +49,26 @@
               />
                         </group>
                     </group>
+                    <div
+            class="alert alert-info"
+            role="alert"
+            invisible="authentication_policy != 'protected'"
+          >
+                        <strong>Protected MCP Endpoint:</strong>
+                        Require authentication before establishing an MCP connection.
+                        Unauthenticated initialization requests receive an OAuth Bearer
+                        challenge. This is the recommended policy for private MCP servers.
+                    </div>
+                    <div
+            class="alert alert-warning"
+            role="alert"
+            invisible="authentication_policy != 'operations'"
+          >
+                        <strong>Protected Operations Only:</strong>
+                        Allow MCP initialization without authentication. Authentication
+                        is requested when the client accesses protected operations such
+                        as tools. Future methods are protected unless explicitly public.
+                    </div>
                     <notebook>
                         <page string="Tools" name="tools">
                             <group>

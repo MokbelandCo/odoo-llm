@@ -4,9 +4,9 @@ from urllib.parse import urlparse
 
 from jinja2 import Template
 from mcp.types import (
+    LATEST_PROTOCOL_VERSION,
     Implementation,
     InitializeResult,
-    LATEST_PROTOCOL_VERSION,
     ServerCapabilities,
     ToolsCapability,
 )
@@ -119,6 +119,20 @@ class LLMMCPServerConfig(models.Model):
         help="Advertise Protected Resource Metadata and accept OAuth access tokens "
         "in addition to Odoo API keys.",
     )
+    authentication_policy = fields.Selection(
+        [
+            ("protected", "Protected MCP Endpoint"),
+            ("operations", "Protected Operations Only"),
+        ],
+        string="Authentication Policy",
+        default="protected",
+        required=True,
+        tracking=True,
+        help="Protected MCP Endpoint requires Bearer authentication before MCP "
+        "initialization and is recommended for private servers. Protected Operations "
+        "Only allows anonymous initialization, notifications, and ping, then requires "
+        "authentication for tools and every other MCP method.",
+    )
     allow_api_key = fields.Boolean(
         string="Allow API Keys",
         default=True,
@@ -173,7 +187,9 @@ class LLMMCPServerConfig(models.Model):
     @api.constrains("endpoint_path")
     def _check_endpoint_path(self):
         for config in self:
-            if not re.fullmatch(r"/mcp(?:/[a-z0-9][a-z0-9_-]*)?", config.endpoint_path or ""):
+            if not re.fullmatch(
+                r"/mcp(?:/[a-z0-9][a-z0-9_-]*)?", config.endpoint_path or ""
+            ):
                 raise ValidationError(
                     "Endpoint Path must be /mcp or /mcp/<name>, using lowercase "
                     "letters, numbers, underscores, or hyphens."
@@ -181,6 +197,19 @@ class LLMMCPServerConfig(models.Model):
             if config.endpoint_path in ("/mcp/health", "/mcp/oauth"):
                 raise ValidationError(
                     "The endpoint names 'health' and 'oauth' are reserved."
+                )
+
+    @api.constrains("authentication_policy", "oauth_enabled", "allow_api_key")
+    def _check_protected_authentication_mechanism(self):
+        for config in self:
+            if (
+                config.authentication_policy == "protected"
+                and not config.oauth_enabled
+                and not config.allow_api_key
+            ):
+                raise ValidationError(
+                    "Protected MCP Endpoint requires OAuth 2.1 or API-key "
+                    "authentication to be enabled."
                 )
 
     @api.model
@@ -388,10 +417,13 @@ class LLMMCPServerConfig(models.Model):
             "mode": self.mode,
             "default_protocol_version": self.get_default_protocol_version(),
             "supported_protocol_versions": self.all_supported_protocol_versions,
+            "authentication_policy": self.authentication_policy,
             "oauth_enabled": self.oauth_enabled,
             "allow_api_key": self.allow_api_key,
             "tool_mode": self.tool_mode,
-            "authorization_server": self.get_oauth_issuer() if self.oauth_enabled else None,
+            "authorization_server": self.get_oauth_issuer()
+            if self.oauth_enabled
+            else None,
             "mcp_sdk_protocol_version": LATEST_PROTOCOL_VERSION,
         }
 
@@ -463,7 +495,9 @@ class LLMMCPServerConfig(models.Model):
             hostname = "localhost"
 
         host_slug = re.sub(r"[^a-z0-9]+", "-", hostname.lower()).strip("-")
-        db_slug = re.sub(r"[^a-z0-9]+", "-", dbname.lower()).strip("-") if dbname else ""
+        db_slug = (
+            re.sub(r"[^a-z0-9]+", "-", dbname.lower()).strip("-") if dbname else ""
+        )
 
         parts = ["odoo", host_slug]
         if db_slug:
