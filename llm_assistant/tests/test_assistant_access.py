@@ -1,3 +1,4 @@
+from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 
@@ -103,9 +104,10 @@ class TestAssistantAccess(TransactionCase):
                 }
             )
         )
-        # Record rules hide the assistant, and set_assistant must still refuse
-        # a manually supplied ID.
-        self.assertFalse(thread.set_assistant(self.private_assistant.id))
+        # A manually supplied ID must be refused even if the caller bypasses
+        # the listing API; AccessError is raised before the write.
+        with self.assertRaises(AccessError):
+            thread.set_assistant(self.private_assistant.id)
         self.assertFalse(thread.assistant_id)
         assistant, error = (
             self.env["llm.assistant"]

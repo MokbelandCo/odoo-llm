@@ -56,8 +56,11 @@ class TestThreadAccess(TransactionCase):
         self.assertFalse(threads)
 
     def test_user_cannot_browse_another_users_thread(self):
+        # browse()/exists() does not apply record rules; access checks do.
         thread = self.env["llm.thread"].with_user(self.user_b).browse(self.thread_a.id)
-        self.assertFalse(thread.exists())
+        self.assertFalse(thread.has_access("read"))
+        with self.assertRaises(AccessError):
+            thread.check_access("read")
 
     def test_user_cannot_write_another_users_thread(self):
         with self.assertRaises(AccessError):

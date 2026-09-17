@@ -6,7 +6,7 @@ import {
   serializePopupHubState,
 } from "@llm_thread/services/llm_popup_hub_service";
 
-describe("llm.PopupHub persistence", () => {
+describe("@llm_thread/llm.PopupHub persistence", () => {
   test("discards corrupt JSON", () => {
     const parsed = parsePopupHubState("{not json");
     expect(parsed.opened).toEqual([]);
