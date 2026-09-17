@@ -12,7 +12,7 @@
         class="o-llm-ChatWindow-header d-flex align-items-center flex-shrink-0 border-bottom px-2 py-1"
         t-on-click="onClickHeader"
       >
-                <i class="fa fa-robot me-2" role="img" />
+                <i class="fa fa-magic me-2" role="img" />
                 <span class="fw-bold text-truncate me-2" t-esc="aiLabel" />
                 <span
           class="text-muted small text-truncate flex-grow-1 me-2"

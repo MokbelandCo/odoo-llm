@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChatSystray">
-        <button
-      class="o-llm-Systray-toggler btn px-2"
-      type="button"
-      t-on-click="onClick"
-      t-att-title="title"
-      t-att-aria-label="ariaLabel"
-      t-att-aria-pressed="popupHub.hasOpenWindows ? 'true' : 'false'"
-    >
-            <i class="fa fa-lg fa-robot" role="img" />
-        </button>
+        <!-- Wrapper matches other systray items so navbar flex/height apply. -->
+        <div>
+            <button
+        class="o-llm-Systray-toggler o_nav_entry"
+        type="button"
+        t-on-click="onClick"
+        t-att-title="title"
+        t-att-aria-label="ariaLabel"
+        t-att-aria-pressed="popupHub.hasOpenWindows ? 'true' : 'false'"
+      >
+                <i class="fa fa-lg fa-magic" role="img" />
+            </button>
+        </div>
     </t>
 </templates>

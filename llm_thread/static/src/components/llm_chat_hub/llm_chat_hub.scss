@@ -3,9 +3,13 @@
   background: transparent;
   border: 0;
 
+  .fa {
+    line-height: inherit;
+  }
+
   &:hover,
   &[aria-pressed="true"] {
-    color: var(--primary);
+    color: var(--NavBar-entry-color--hover, #{$o-navbar-entry-color--hover});
   }
 }
 
