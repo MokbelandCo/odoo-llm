@@ -82,18 +82,14 @@
       min-height: 0;
 
       .o-llm-thread-header {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         min-height: auto;
         padding: 0.5rem;
         gap: 0.25rem;
       }
 
-      .o-llm-sidebar:not(.o-mobile) {
-        max-width: 48px;
-
-        &:not([style*="width: 48px"]) {
-          max-width: 180px;
-        }
+      .o-llm-composer-area {
+        padding: 0.5rem !important;
       }
     }
   }

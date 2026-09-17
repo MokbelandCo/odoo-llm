@@ -49,3 +49,22 @@
     }
   }
 }
+
+.o-llm-ThreadHeader-moreMenu {
+  min-width: 220px;
+
+  .o-llm-thread-header-settings--compact {
+    .o-dropdown,
+    .o-llm-thread-header-tools {
+      width: 100%;
+    }
+
+    button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+    }
+  }
+}

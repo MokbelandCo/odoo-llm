@@ -50,6 +50,13 @@ export class LLMThreadHeader extends Component {
   }
 
   /**
+   * Compact popup header: provider/model/tools/assistant live under "...".
+   */
+  get compact() {
+    return Boolean(this.props.compact);
+  }
+
+  /**
    * Get current provider
    */
   get currentProvider() {
@@ -375,4 +382,5 @@ export class LLMThreadHeader extends Component {
 
 LLMThreadHeader.props = {
   thread: { type: Object, optional: true },
+  compact: { type: Boolean, optional: true },
 };

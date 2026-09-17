@@ -19,6 +19,8 @@ export class LLMChatContainer extends Component {
     recordId: { type: Number, optional: true },
     thread: { type: Object, optional: true },
     compactSidebar: { type: Boolean, optional: true },
+    hideSidebar: { type: Boolean, optional: true },
+    compactHeader: { type: Boolean, optional: true },
     onSelectThread: { type: Function, optional: true },
     onCreateThread: { type: Function, optional: true },
   };
@@ -56,6 +58,20 @@ export class LLMChatContainer extends Component {
     const isChatterAside = this.env.inChatter?.aside ?? false;
     const shouldUseMobileLayout = isActuallySmall || isChatterAside;
     return shouldUseMobileLayout;
+  }
+
+  /**
+   * Popup windows hide the conversation list; each window is one thread.
+   */
+  get hideSidebar() {
+    return Boolean(this.props.hideSidebar);
+  }
+
+  /**
+   * Popup windows collapse provider/model/tools/assistant under "...".
+   */
+  get compactHeader() {
+    return Boolean(this.props.compactHeader);
   }
 
   /**

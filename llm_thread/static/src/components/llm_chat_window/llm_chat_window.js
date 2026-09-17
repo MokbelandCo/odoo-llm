@@ -20,6 +20,8 @@ export class LLMChatWindow extends Component {
   setup() {
     this.popupHub = useState(useService("llm.popup_hub"));
     this.mailStore = useState(useService("mail.store"));
+    this.llmStore = useState(useService("llm.store"));
+    this.action = useService("action");
     this.ui = useState(useService("ui"));
   }
 
@@ -48,6 +50,10 @@ export class LLMChatWindow extends Component {
 
   get closeTitle() {
     return _t("Close");
+  }
+
+  get maximizeTitle() {
+    return _t("Open in full screen");
   }
 
   get attClass() {
@@ -88,11 +94,17 @@ export class LLMChatWindow extends Component {
     this.popupHub.closeThread(this.props.window.threadId);
   }
 
-  async onSelectThread(threadId) {
-    await this.popupHub.openThread(threadId);
-  }
-
-  async onCreateThread() {
-    await this.popupHub.createAndOpenThread();
+  async onMaximize(ev) {
+    ev.stopPropagation();
+    const threadId = this.props.window.threadId;
+    this.popupHub.closeThread(threadId);
+    await this.llmStore.selectThread(threadId);
+    await this.action.doAction({
+      type: "ir.actions.client",
+      tag: "llm_thread.chat_client_action",
+      name: _t("AI Chat"),
+      context: { active_id: `llm.thread_${threadId}` },
+      params: { active_id: `llm.thread_${threadId}` },
+    });
   }
 }

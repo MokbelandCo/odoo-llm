@@ -88,21 +88,7 @@ export const llmPopupHubService = {
 
       async openFromSystray() {
         await this.isReady;
-        if (this.windows.length) {
-          const focusId =
-            this.focusedThreadId || this.windows[this.windows.length - 1].threadId;
-          this.focusThread(focusId);
-          return;
-        }
-        const threads = llmStore.llmThreadList;
-        if (threads.length) {
-          await this.openThread(threads[0].id);
-          return;
-        }
-        const threadId = await llmStore.createNewThread({ select: false });
-        if (threadId) {
-          await this.openThread(threadId);
-        }
+        await this.createAndOpenThread();
       },
 
       async openThread(threadId) {
