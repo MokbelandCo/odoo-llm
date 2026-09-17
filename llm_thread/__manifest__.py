@@ -47,6 +47,7 @@ Contact: support@apexive.com
         "web.assets_backend": [
             # Services - LLM store service for integration with mail.store
             "llm_thread/static/src/services/llm_store_service.js",
+            "llm_thread/static/src/services/llm_popup_hub_state.js",
             "llm_thread/static/src/services/llm_popup_hub_service.js",
             # Components - LLM Chat Container using existing mail components
             "llm_thread/static/src/components/llm_chat_container/llm_chat_container.js",

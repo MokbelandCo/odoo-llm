@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import {
   parsePopupHubState,
   serializePopupHubState,
-} from "@llm_thread/services/llm_popup_hub_service";
+} from "@llm_thread/services/llm_popup_hub_state";
 
 describe("@llm_thread/llm.PopupHub persistence", () => {
   test("discards corrupt JSON", () => {
