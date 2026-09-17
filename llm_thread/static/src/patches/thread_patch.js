@@ -33,7 +33,8 @@ patch(Thread.prototype, {
    */
   get isStreaming() {
     if (!this.isLLMThread) return false;
-    return this.llmStore?.getStreamingStatus() || false;
+    const threadId = this.props.thread?.id;
+    return this.llmStore?.isStreamingThread(threadId) || false;
   },
 
   /**

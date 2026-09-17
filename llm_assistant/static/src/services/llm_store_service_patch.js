@@ -40,12 +40,12 @@ patch(llmStoreService, {
     Object.assign(llmStore, {
       async loadLLMAssistants() {
         try {
-          const assistants = await orm.searchRead(
+          const assistants = await orm.call(
             "llm.assistant",
-            [["active", "=", true]],
-            ["id", "name", "is_public", "provider_id", "model_id", "tool_ids"]
+            "get_allowed_assistants"
           );
 
+          this.llmAssistants.clear();
           assistants.forEach((assistant) => {
             this.llmAssistants.set(assistant.id, assistant);
           });
@@ -58,9 +58,9 @@ patch(llmStoreService, {
         }
       },
 
-      async selectAssistant(assistantId) {
-        const activeThread = this.activeLLMThread;
-        if (!activeThread) {
+      async selectAssistant(assistantId, thread = null) {
+        const targetThread = thread || this.activeLLMThread;
+        if (!targetThread) {
           notification.add("No active thread to update", { type: "warning" });
           return;
         }
@@ -68,17 +68,20 @@ patch(llmStoreService, {
         try {
           // Use RPC endpoint instead of direct ORM call for better separation of concerns
           const result = await rpc("/llm/thread/set_assistant", {
-            thread_id: activeThread.id,
+            thread_id: targetThread.id,
             assistant_id: assistantId,
           });
 
           if (!result.success && result.success !== undefined) {
-            notification.add("Failed to update assistant", { type: "danger" });
+            notification.add(
+              result.error || "Failed to update assistant",
+              { type: "danger" }
+            );
             return;
           }
 
           // Reuse existing fetchData pattern to refresh thread data
-          await activeThread.fetchThreadData([
+          await targetThread.fetchThreadData([
             "assistant_id",
             "provider_id",
             "model_id",

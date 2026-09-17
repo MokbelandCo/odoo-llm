@@ -15,11 +15,14 @@ patch(LLMThreadHeader.prototype, {
   },
 
   /**
-   * Get current assistant following existing pattern
+   * Get current assistant from this header's thread, not a global slot.
    */
   get currentAssistant() {
-    if (!this.assistantStore?.currentAssistant) return null;
-    return this.assistantStore.currentAssistant;
+    const thread = this.activeThread;
+    if (!thread?.assistant_id) return null;
+
+    const assistantId = thread.assistant_id?.id || thread.assistant_id;
+    return this.assistantStore?.llmAssistants?.get(assistantId) || thread.assistant_id;
   },
 
   /**
@@ -42,7 +45,7 @@ patch(LLMThreadHeader.prototype, {
 
     try {
       this.state.isLoadingUpdate = true;
-      await this.assistantStore.selectAssistant(assistantId);
+      await this.assistantStore.selectAssistant(assistantId, this.activeThread);
     } catch (error) {
       this.notification.add("Failed to update assistant", {
         type: "danger",

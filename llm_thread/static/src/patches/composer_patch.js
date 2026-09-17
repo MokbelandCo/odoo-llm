@@ -42,7 +42,8 @@ patch(Composer.prototype, {
     if (!this.isLLMThread || !this.llmStore) {
       return false;
     }
-    return this.llmStore.getStreamingStatus() || false;
+    const threadId = this.props.composer?.thread?.id;
+    return this.llmStore.isStreamingThread(threadId) || false;
   },
 
   get showStop() {

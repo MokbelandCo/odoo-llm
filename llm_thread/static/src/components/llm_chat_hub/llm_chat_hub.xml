@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_thread.LLMChatHub">
+        <div
+      class="o-llm-ChatHub"
+      t-att-class="{ 'o-llm-ChatHub--small': isSmall }"
+    >
+            <div
+        t-if="isSmall and popupHub.windows.length > 1"
+        class="o-llm-ChatHub-switcher d-flex overflow-auto border-bottom bg-view"
+      >
+                <t
+          t-foreach="popupHub.windows"
+          t-as="win"
+          t-key="win.threadId"
+        >
+                    <button
+            class="o-llm-ChatHub-switcherItem btn btn-sm text-truncate"
+            t-att-class="{ 'btn-primary': win.threadId === popupHub.focusedThreadId, 'btn-light': win.threadId !== popupHub.focusedThreadId }"
+            type="button"
+            t-on-click="() => this.onSwitchWindow(win.threadId)"
+            t-att-title="getWindowName(win)"
+          >
+                        <t t-esc="getWindowName(win)" />
+                    </button>
+                </t>
+            </div>
+            <t
+        t-foreach="popupHub.windows"
+        t-as="win"
+        t-key="win.threadId"
+      >
+                <LLMChatWindow window="win" />
+            </t>
+        </div>
+    </t>
+</templates>

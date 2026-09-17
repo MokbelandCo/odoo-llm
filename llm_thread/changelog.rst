@@ -1,3 +1,11 @@
+19.0.1.1.0 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Global AI chat systray popup for backend users
+* [ADD] Independent llm.popup_hub with browser layout persistence
+* [IMP] LLMChatContainer accepts an explicit thread so popups do not mutate Discuss
+* [IMP] Per-thread streaming indicators so Stop only affects the intended conversation
+
 18.0.1.4.5 (2026-01-17)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

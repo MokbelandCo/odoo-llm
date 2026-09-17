@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_thread.LLMChatWindow">
+        <div
+      class="o-llm-ChatWindow overflow-hidden d-flex flex-column shadow bg-100"
+      t-att-class="attClass"
+      t-att-style="style"
+      role="dialog"
+      t-att-aria-label="title"
+    >
+            <div
+        class="o-llm-ChatWindow-header d-flex align-items-center flex-shrink-0 border-bottom px-2 py-1"
+        t-on-click="onClickHeader"
+      >
+                <i class="fa fa-robot me-2" role="img" />
+                <span class="fw-bold text-truncate me-2" t-esc="aiLabel" />
+                <span
+          class="text-muted small text-truncate flex-grow-1 me-2"
+          t-esc="title"
+        />
+                <button
+          t-if="!isSmall"
+          class="btn btn-sm btn-light"
+          type="button"
+          t-on-click="onToggleFold"
+          t-att-title="foldTitle"
+          t-att-aria-label="foldTitle"
+        >
+                    <i
+            t-att-class="props.window.folded ? 'fa fa-window-maximize' : 'fa fa-minus'"
+          />
+                </button>
+                <button
+          class="btn btn-sm btn-light"
+          type="button"
+          t-on-click="onClose"
+          t-att-title="closeTitle"
+          t-att-aria-label="closeTitle"
+        >
+                    <i class="fa fa-times" />
+                </button>
+            </div>
+            <div
+        t-if="!props.window.folded or isSmall"
+        class="o-llm-ChatWindow-body d-flex flex-column flex-grow-1 overflow-hidden"
+      >
+                <LLMChatContainer
+          t-if="thread"
+          thread="thread"
+          compactSidebar="true"
+          onSelectThread.bind="onSelectThread"
+          onCreateThread.bind="onCreateThread"
+        />
+            </div>
+        </div>
+    </t>
+</templates>
