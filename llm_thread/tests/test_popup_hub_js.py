@@ -9,7 +9,7 @@ def _hoot_error_checker(message):
 class TestPopupHubHoot(HttpCase):
     def test_popup_hub_persistence_suite(self):
         self.browser_js(
-            "/web/tests?headless&loglevel=2&preset=desktop&timeout=15000&filter=PopupHub",
+            "/web/tests?headless&loglevel=2&preset=desktop&timeout=15000&filter=@llm_thread/llm_popup_hub",
             "",
             "",
             login="admin",
