@@ -33,7 +33,7 @@
   position: fixed;
   bottom: 0;
   width: 380px;
-  height: min(95vh, calc(380px * 15 / 9));
+  height: Min(95vh, 380px * 15 / 9);
   z-index: $zindex-sticky;
   background-color: $o-view-background-color;
   border: 1px solid rgba(0, 0, 0, 0.15);
