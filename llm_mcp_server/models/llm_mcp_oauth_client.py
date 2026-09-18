@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 from ..oauth import (
@@ -14,13 +14,21 @@ class LLMMCPOauthClient(models.Model):
     _name = "llm.mcp.oauth.client"
     _description = "MCP OAuth Client"
     _order = "create_date desc"
+    _sql_constraints = [
+        (
+            "client_id_unique",
+            "unique(client_id)",
+            "OAuth client_id must be unique.",
+        ),
+    ]
 
     name = fields.Char(required=True, default="MCP Client")
-    client_id = fields.Char(
-        required=True, index=True, copy=False, default=lambda self: new_token(16)
-    )
+    client_id = fields.Char(required=True, index=True, copy=False, default=lambda self: new_token(16))
     client_secret_hash = fields.Char(copy=False)
-    is_confidential = fields.Boolean(default=False)
+    is_confidential = fields.Boolean(
+        default=False,
+        help="Set when a client secret has been generated. The plaintext is shown only once.",
+    )
     token_endpoint_auth_method = fields.Selection(
         [
             ("none", "None (public / PKCE)"),
@@ -29,11 +37,12 @@ class LLMMCPOauthClient(models.Model):
         ],
         default="none",
         required=True,
+        help="None is for public apps (Cursor, Claude) using PKCE. "
+        "Client Secret Post sends the secret in the token request body. "
+        "Client Secret Basic sends it as HTTP Basic auth.",
     )
     redirect_uris = fields.Json(default=list)
-    grant_types = fields.Json(
-        default=lambda self: ["authorization_code", "refresh_token"]
-    )
+    grant_types = fields.Json(default=lambda self: ["authorization_code", "refresh_token"])
     response_types = fields.Json(default=lambda self: ["code"])
     scope = fields.Char(default=MCP_OAUTH_SCOPE)
     service_user_id = fields.Many2one(
@@ -41,14 +50,6 @@ class LLMMCPOauthClient(models.Model):
         help="Odoo user used for the client_credentials grant. Required for that grant.",
     )
     active = fields.Boolean(default=True)
-
-    _sql_constraints = [
-        (
-            "client_id_unique",
-            "unique(client_id)",
-            "OAuth client_id must be unique.",
-        ),
-    ]
 
     @api.constrains("redirect_uris")
     def _check_redirect_uris(self):
@@ -65,6 +66,24 @@ class LLMMCPOauthClient(models.Model):
         self.is_confidential = bool(secret)
         if secret and self.token_endpoint_auth_method == "none":
             self.token_endpoint_auth_method = "client_secret_post"
+
+    def action_generate_client_secret(self):
+        """Hash a new secret on the client and show the plaintext once."""
+        self.ensure_one()
+        secret = new_token(24)
+        self.set_client_secret(secret)
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "llm.mcp.oauth.client.secret.show",
+            "name": _("Client Secret Ready"),
+            "views": [(False, "form")],
+            "target": "new",
+            "context": {
+                "default_client_id": self.client_id,
+                "default_client_secret": secret,
+                "default_token_endpoint_auth_method": self.token_endpoint_auth_method,
+            },
+        }
 
     def check_secret(self, secret):
         self.ensure_one()
@@ -90,9 +109,7 @@ class LLMMCPOauthClient(models.Model):
             "response_types": self.response_types or [],
             "token_endpoint_auth_method": self.token_endpoint_auth_method,
             "scope": self.scope or MCP_OAUTH_SCOPE,
-            "client_id_issued_at": int(self.create_date.timestamp())
-            if self.create_date
-            else None,
+            "client_id_issued_at": int(self.create_date.timestamp()) if self.create_date else None,
         }
         if client_secret:
             payload["client_secret"] = client_secret

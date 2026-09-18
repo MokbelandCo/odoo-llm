@@ -5,11 +5,11 @@
         <field name="model">llm.mcp.oauth.client</field>
         <field name="arch" type="xml">
             <tree>
-                <field name="name" />
-                <field name="client_id" />
-                <field name="token_endpoint_auth_method" />
-                <field name="is_confidential" />
-                <field name="active" />
+                <field name="name"/>
+                <field name="client_id"/>
+                <field name="token_endpoint_auth_method"/>
+                <field name="is_confidential"/>
+                <field name="active"/>
             </tree>
         </field>
     </record>
@@ -19,20 +19,40 @@
         <field name="model">llm.mcp.oauth.client</field>
         <field name="arch" type="xml">
             <form string="MCP OAuth Client">
+                <header>
+                    <button
+                        name="action_generate_client_secret"
+                        type="object"
+                        string="Generate Secret"
+                        class="btn-primary"
+                        groups="llm.group_llm_manager"
+                        invisible="not id or is_confidential"
+                        confirm="The plaintext secret can be copied only once. Store it before closing the dialog. Public apps such as Cursor should keep None (public / PKCE)."
+                    />
+                    <button
+                        name="action_generate_client_secret"
+                        type="object"
+                        string="Rotate Secret"
+                        class="btn-secondary"
+                        groups="llm.group_llm_manager"
+                        invisible="not id or not is_confidential"
+                        confirm="This replaces the current secret. Callers must use the new value. The plaintext can be copied only once."
+                    />
+                </header>
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" />
-                            <field name="client_id" />
-                            <field name="token_endpoint_auth_method" />
-                            <field name="is_confidential" />
-                            <field name="active" />
+                            <field name="name"/>
+                            <field name="client_id"/>
+                            <field name="token_endpoint_auth_method"/>
+                            <field name="is_confidential" readonly="1"/>
+                            <field name="active"/>
                         </group>
                         <group>
-                            <field name="scope" />
-                            <field name="service_user_id" />
-                            <field name="grant_types" widget="json_editor" />
-                            <field name="redirect_uris" widget="json_editor" />
+                            <field name="scope"/>
+                            <field name="service_user_id"/>
+                            <field name="grant_types" widget="json_editor"/>
+                            <field name="redirect_uris" widget="json_editor"/>
                         </group>
                     </group>
                 </sheet>
@@ -47,10 +67,10 @@
     </record>
 
     <menuitem
-    id="menu_llm_mcp_oauth_client"
-    name="MCP OAuth Clients"
-    action="action_llm_mcp_oauth_client"
-    parent="llm.menu_llm_config"
-    sequence="55"
-  />
+        id="menu_llm_mcp_oauth_client"
+        name="MCP OAuth Clients"
+        action="action_llm_mcp_oauth_client"
+        parent="llm.menu_llm_config"
+        sequence="55"
+    />
 </odoo>

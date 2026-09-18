@@ -1,12 +1,13 @@
 """MCP OAuth 2.1 tests for metadata, tokens, PKCE, and bearer auth."""
 
-import json
 import secrets
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from lxml import html as html_parser
 
-from odoo.tests import HttpCase, TransactionCase, tagged
+from odoo.tests import TransactionCase, tagged
+
+from odoo.addons.llm_mcp_server.tests.json_http_case import JsonHttpCase
 
 from odoo.addons.llm_mcp_server.oauth import (
     canonical_resource_uri,
@@ -72,6 +73,42 @@ class TestMcpOauthModels(TransactionCase):
         self.assertTrue(client.check_secret("s3cret"))
         self.assertFalse(client.check_secret("nope"))
 
+    def test_generate_client_secret_shows_plaintext_once(self):
+        client = self.env["llm.mcp.oauth.client"].create({"name": "Secret Dialog"})
+        self.assertFalse(client.is_confidential)
+        self.assertEqual(client.token_endpoint_auth_method, "none")
+
+        action = client.action_generate_client_secret()
+        self.assertEqual(action["type"], "ir.actions.act_window")
+        self.assertEqual(action["res_model"], "llm.mcp.oauth.client.secret.show")
+        self.assertEqual(action["target"], "new")
+        secret = action["context"]["default_client_secret"]
+        self.assertTrue(secret)
+        self.assertEqual(action["context"]["default_client_id"], client.client_id)
+        self.assertEqual(
+            action["context"]["default_token_endpoint_auth_method"],
+            "client_secret_post",
+        )
+        self.assertTrue(client.is_confidential)
+        self.assertEqual(client.token_endpoint_auth_method, "client_secret_post")
+        self.assertTrue(client.check_secret(secret))
+        self.assertNotEqual(client.client_secret_hash, secret)
+
+        action = client.action_generate_client_secret()
+        rotated = action["context"]["default_client_secret"]
+        self.assertTrue(rotated)
+        self.assertNotEqual(rotated, secret)
+        self.assertFalse(client.check_secret(secret))
+        self.assertTrue(client.check_secret(rotated))
+
+        client.token_endpoint_auth_method = "client_secret_basic"
+        action = client.action_generate_client_secret()
+        self.assertEqual(client.token_endpoint_auth_method, "client_secret_basic")
+        self.assertEqual(
+            action["context"]["default_token_endpoint_auth_method"],
+            "client_secret_basic",
+        )
+
     def test_redirect_uri_with_params(self):
         url = redirect_uri_with_params(
             "https://chatgpt.com/connector/oauth/TcOKfq1os1i5",
@@ -92,14 +129,7 @@ class TestMcpOauthModels(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestMcpOauthHttp(HttpCase):
-    def _url_open_json(self, url, payload, headers=None):
-        return self.url_open(
-            url,
-            data=json.dumps(payload),
-            headers={"Content-Type": "application/json", **(headers or {})},
-        )
-
+class TestMcpOauthHttp(JsonHttpCase):
     def test_well_known_metadata(self):
         response = self.url_open("/.well-known/oauth-protected-resource/mcp")
         self.assertEqual(response.status_code, 200)
@@ -114,17 +144,31 @@ class TestMcpOauthHttp(HttpCase):
         self.assertIn("S256", as_body["code_challenge_methods_supported"])
         self.assertIn("authorization_code", as_body["grant_types_supported"])
 
-    def test_dynamic_client_registration_and_client_credentials(self):
-        register = self._url_open_json(
-            "/mcp/oauth/register",
+    def test_named_server_has_distinct_protected_resource_metadata(self):
+        config = self.env["llm.mcp.server.config"].create(
             {
+                "name": "Named OAuth Server",
+                "version": "1.0.0",
+                "latest_protocol_version": "2025-11-25",
+                "endpoint_path": "/mcp/oauth-test",
+                "active": True,
+                "oauth_enabled": True,
+            }
+        )
+        response = self.url_open(
+            "/.well-known/oauth-protected-resource/mcp/oauth-test"
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["resource"].endswith("/mcp/oauth-test"))
+        config.unlink()
+
+    def test_dynamic_client_registration_and_client_credentials(self):
+        register = self.url_open(
+            "/mcp/oauth/register",
+            json={
                 "client_name": "Http Test Client",
                 "redirect_uris": ["http://127.0.0.1:9/callback"],
-                "grant_types": [
-                    "client_credentials",
-                    "authorization_code",
-                    "refresh_token",
-                ],
+                "grant_types": ["client_credentials", "authorization_code", "refresh_token"],
                 "token_endpoint_auth_method": "client_secret_post",
             },
         )
@@ -158,9 +202,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(token_response.status_code, 200, token_response.text)
         token = token_response.json()["access_token"]
 
-        initialize = self._url_open_json(
+        initialize = self.url_open(
             "/mcp",
-            {
+            json={
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
@@ -179,9 +223,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(initialize.status_code, 200, initialize.text)
         session_id = initialize.headers.get("Mcp-Session-Id")
 
-        tools = self._url_open_json(
+        tools = self.url_open(
             "/mcp",
-            {
+            json={
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tools/list",
@@ -198,9 +242,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertIn("tools", tools.json()["result"])
 
     def test_tools_list_without_token_advertises_resource_metadata(self):
-        response = self._url_open_json(
+        response = self.url_open(
             "/mcp",
-            {
+            json={
                 "jsonrpc": "2.0",
                 "id": 9,
                 "method": "tools/list",
@@ -218,17 +262,13 @@ class TestMcpOauthHttp(HttpCase):
 
     def test_authorization_code_token_exchange(self):
         verifier, challenge = _pkce_pair()
-        client = (
-            self.env["llm.mcp.oauth.client"]
-            .sudo()
-            .create(
-                {
-                    "name": "Code Client",
-                    "redirect_uris": ["http://127.0.0.1:9/callback"],
-                    "grant_types": ["authorization_code", "refresh_token"],
-                    "token_endpoint_auth_method": "none",
-                }
-            )
+        client = self.env["llm.mcp.oauth.client"].sudo().create(
+            {
+                "name": "Code Client",
+                "redirect_uris": ["http://127.0.0.1:9/callback"],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_method": "none",
+            }
         )
         config = self.env["llm.mcp.server.config"].sudo().get_active_config()
         resource = canonical_resource_uri(config.get_mcp_server_url())
@@ -264,20 +304,14 @@ class TestMcpOauthHttp(HttpCase):
         self.assertTrue(body["refresh_token"])
         self.assertEqual(canonical_resource_uri(body["resource"]), resource)
 
-    def _authorize_client(
-        self, redirect_uri="http://127.0.0.1:9/callback", name="Browser Client"
-    ):
-        return (
-            self.env["llm.mcp.oauth.client"]
-            .sudo()
-            .create(
-                {
-                    "name": name,
-                    "redirect_uris": [redirect_uri],
-                    "grant_types": ["authorization_code", "refresh_token"],
-                    "token_endpoint_auth_method": "none",
-                }
-            )
+    def _authorize_client(self, redirect_uri="http://127.0.0.1:9/callback", name="Browser Client"):
+        return self.env["llm.mcp.oauth.client"].sudo().create(
+            {
+                "name": name,
+                "redirect_uris": [redirect_uri],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_method": "none",
+            }
         )
 
     def _authorize_params(self, client, challenge, redirect_uri=None, extra=None):
@@ -348,10 +382,7 @@ class TestMcpOauthHttp(HttpCase):
             "code_challenge": challenge,
             "code_challenge_method": "S256",
             "resource": canonical_resource_uri(
-                self.env["llm.mcp.server.config"]
-                .sudo()
-                .get_active_config()
-                .get_mcp_server_url()
+                self.env["llm.mcp.server.config"].sudo().get_active_config().get_mcp_server_url()
             ),
             "state": "oauth_s_unknown",
         }
@@ -411,9 +442,9 @@ class TestMcpOauthHttp(HttpCase):
         self.assertEqual(token_response.status_code, 200, token_response.text)
         access_token = token_response.json()["access_token"]
 
-        initialize = self._url_open_json(
+        initialize = self.url_open(
             "/mcp",
-            {
+            json={
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
@@ -430,7 +461,9 @@ class TestMcpOauthHttp(HttpCase):
             },
         )
         self.assertEqual(initialize.status_code, 200, initialize.text)
-        self.assertEqual(initialize.json()["result"]["protocolVersion"], "2025-11-25")
+        self.assertEqual(
+            initialize.json()["result"]["protocolVersion"], "2025-11-25"
+        )
 
     def test_authorize_consent_deny_redirects_with_access_denied(self):
         self.authenticate("admin", "admin")

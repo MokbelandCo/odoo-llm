@@ -2,8 +2,9 @@
 Custom MCP Dispatcher for handling MCP-specific JSON-RPC requirements
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Optional
 
 import werkzeug.exceptions
 from mcp.types import (
@@ -21,6 +22,17 @@ _logger = logging.getLogger(__name__)
 # MCP Constants
 MCP_SESSION_ID_HEADER = "Mcp-Session-Id"
 MCP_PROTOCOL_VERSION_HEADER = "Mcp-Protocol-Version"
+
+# In operations-only mode, MCP methods are protected unless explicitly listed
+# here. This fail-closed allowlist prevents future capabilities from becoming
+# anonymously accessible by accident.
+PUBLIC_MCP_METHODS = frozenset(
+    {
+        "initialize",
+        "notifications/initialized",
+        "ping",
+    }
+)
 
 
 class MCPError(Exception):
@@ -83,7 +95,8 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         """
         Hybrid approach: peek at JSON for MCP validation, then let parent handle dispatch.
         """
-        # 1. Peek at JSON to get method for PRE-validation (don't handle errors here)
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
+        method = None
         try:
             jsonrequest = self.request.get_json_data()
             method = jsonrequest.get("method")
@@ -100,18 +113,28 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
                 request.httprequest.headers.get("Accept"),
                 request.httprequest.remote_addr,
             )
-
-            # 2. MCP validations BEFORE endpoint execution
-            if method:
-                self._validate_session_requirements(method, session_id)
-            self._validate_protocol_version()
-
         except (ValueError, AttributeError):
             # Let parent handle JSON parsing errors properly
-            pass
+            session_id = request.httprequest.headers.get(MCP_SESSION_ID_HEADER)
 
-        # 3. Let parent handle ALL JSON-RPC work (parsing, validation, dispatch)
+        # Authentication is a transport-level policy and must run before protocol
+        # or session errors can turn a missing credential into a JSON-RPC response.
+        self._enforce_authentication(config, method)
+
+        if method:
+            self._validate_session_requirements(method, session_id, config)
+        self._validate_protocol_version(config)
+
         return super().dispatch(endpoint, args)
+
+    @staticmethod
+    def _enforce_authentication(config, method_name):
+        authentication_required = (
+            config.authentication_policy == "protected"
+            or method_name not in PUBLIC_MCP_METHODS
+        )
+        if authentication_required:
+            request.env["ir.http"]._auth_method_mcp_bearer()
 
     def handle_error(self, exc: Exception):
         """
@@ -205,7 +228,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         return response
 
     def _validate_session_requirements(
-        self, method_name: str, session_id: Optional[str]
+        self, method_name: str, session_id: str | None, config
     ):
         """
         Validate session requirements based on server mode and method
@@ -216,16 +239,6 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         if method_name and method_name.startswith("test"):
             return
 
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
-
-        protected_methods = {"tools/list", "tools/call"}
-        if method_name in protected_methods:
-            authorization = request.httprequest.headers.get("Authorization") or ""
-            if not authorization.lower().startswith("bearer "):
-                request.env["ir.http"]._mcp_unauthorized(
-                    "Missing Bearer token", error="invalid_request"
-                )
-
         # For stateless mode, no session validation needed
         if config.mode == "stateless":
             return
@@ -235,7 +248,11 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
             if not session_id:
                 raise MCPSessionError("Missing mcp-session-id header", http_status=400)
 
-            session = request.env["llm.mcp.session"].sudo().get_session(session_id)
+            session = (
+                request.env["llm.mcp.session"]
+                .sudo()
+                .get_session(session_id, server_config=config)
+            )
             if not session:
                 raise MCPSessionError("Session not found", http_status=404)
 
@@ -246,7 +263,7 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
                     http_status=400,
                 )
 
-    def _validate_protocol_version(self):
+    def _validate_protocol_version(self, config):
         """
         Validate protocol version header in the request
         Following MCP SDK pattern (lines 706-726)
@@ -257,11 +274,6 @@ class MCPJsonRPCDispatcher(JsonRPCDispatcher):
         # If no version provided, that's OK (we'll use default)
         if not protocol_version:
             return
-
-        # Get supported versions from config
-        # Protocol validation occurs before bearer authentication. Configuration
-        # is server metadata, so this read must not depend on public-user ACLs.
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
 
         if not config.is_protocol_version_supported(protocol_version):
             supported_versions = config.get_supported_versions_string()

@@ -29,12 +29,10 @@
                 readonly="1"
               />
                             <field name="mode" />
+                            <field name="authentication_policy" />
                             <field name="oauth_enabled" />
                             <field name="allow_api_key" />
-                            <field
-                name="oauth_issuer_url"
-                placeholder="Leave empty to use this Odoo database"
-              />
+                            <field name="oauth_issuer_url" placeholder="Leave empty to use this Odoo database" />
                         </group>
                         <group>
                             <field
@@ -42,12 +40,60 @@
                 placeholder="e.g., http://host.docker.internal:8069"
               />
                             <field
+                name="endpoint_path"
+                placeholder="e.g., /mcp/sales"
+              />
+                            <field
                 name="client_name"
                 placeholder="e.g., odoo-localhost-mydb (auto-generated if empty)"
               />
                         </group>
                     </group>
+                    <div
+            class="alert alert-info"
+            role="alert"
+            invisible="authentication_policy != 'protected'"
+          >
+                        <strong>Protected MCP Endpoint:</strong>
+                        Require authentication before establishing an MCP connection.
+                        Unauthenticated initialization requests receive an OAuth Bearer
+                        challenge. This is the recommended policy for private MCP servers.
+                    </div>
+                    <div
+            class="alert alert-warning"
+            role="alert"
+            invisible="authentication_policy != 'operations'"
+          >
+                        <strong>Protected Operations Only:</strong>
+                        Allow MCP initialization without authentication. Authentication
+                        is requested when the client accesses protected operations such
+                        as tools. Future methods are protected unless explicitly public.
+                    </div>
                     <notebook>
+                        <page string="Tools" name="tools">
+                            <group>
+                                <field name="tool_mode" />
+                            </group>
+                            <p class="text-muted">
+                                All Tools exposes every active llm.tool the authenticated
+                                user can access. Selected Tools exposes only the tools
+                                listed here. Record rules still apply in both modes.
+                            </p>
+                            <field
+                name="tool_ids"
+                invisible="tool_mode != 'selected'"
+                nolabel="1"
+                options="{'no_create': True}"
+              >
+                                <tree>
+                                    <field name="name" />
+                                    <field name="title" />
+                                    <field name="description" />
+                                    <field name="category" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
                         <page
               string="Client Configuration"
               name="client_config"
@@ -168,10 +214,10 @@
                         </page>
                     </notebook>
                 </sheet>
-            <div class="oe_chatter">
-                <field name="message_follower_ids" />
-                <field name="message_ids" />
-            </div>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" />
+                    <field name="message_ids" />
+                </div>
             </form>
         </field>
     </record>
@@ -186,6 +232,8 @@
                 <field name="version" />
                 <field name="latest_protocol_version" />
                 <field name="all_supported_protocol_versions" />
+                <field name="endpoint_path" />
+                <field name="tool_mode" />
                 <field name="active" />
                 <field name="write_date" />
             </tree>
@@ -201,6 +249,7 @@
                 <field name="name" />
                 <field name="version" />
                 <field name="latest_protocol_version" />
+                <field name="endpoint_path" />
                 <field name="all_supported_protocol_versions" />
                 <filter
           string="Active"
@@ -227,8 +276,9 @@
                 Configure MCP Server Settings
             </p>
             <p>
-                Configure the Model Context Protocol (MCP) server settings including server name, version, and protocol version.
-                Only one configuration can be active at a time.
+                Configure independently served Model Context Protocol (MCP)
+                endpoints. Every active configuration has a unique URL path and
+                can use its own protocol, authentication, session, and tool settings.
             </p>
         </field>
     </record>

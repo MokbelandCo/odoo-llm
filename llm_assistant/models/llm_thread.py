@@ -1,7 +1,7 @@
 import logging
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -55,6 +55,10 @@ class LLMThread(models.Model):
         assistant = self.env["llm.assistant"].browse(assistant_id)
         if not assistant.exists():
             return False
+
+        allowed = self.env["llm.assistant"]._get_allowed_assistants_for_user()
+        if assistant not in allowed:
+            raise AccessError(_("You are not allowed to use this assistant."))
 
         # Update the thread with the assistant and related fields
         update_vals = {

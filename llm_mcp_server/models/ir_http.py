@@ -16,21 +16,22 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _mcp_unauthorized(cls, message, error="invalid_token"):
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
-        challenge = WWWAuthenticate(
-            "bearer",
-            {
-                "realm": "mcp",
-                "resource_metadata": config.get_resource_metadata_url(),
-                "error": error,
-                "error_description": (message or "")[:200],
-            },
-        )
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
+        challenge_parameters = {
+            "realm": "mcp",
+            "error": error,
+            "error_description": (message or "")[:200],
+        }
+        if config.oauth_enabled:
+            challenge_parameters["resource_metadata"] = (
+                config.get_resource_metadata_url()
+            )
+        challenge = WWWAuthenticate("bearer", challenge_parameters)
         raise Unauthorized(message, www_authenticate=challenge)
 
     @classmethod
     def _mcp_authenticate_oauth_token(cls, token_value):
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
         if not config.oauth_enabled:
             return None
         token = (
@@ -63,7 +64,7 @@ class IrHttp(models.AbstractModel):
         if header.lower().startswith("bearer "):
             token_value = header[7:].strip()
 
-        config = request.env["llm.mcp.server.config"].sudo().get_active_config()
+        config = request.env["llm.mcp.server.config"].sudo().get_config_for_request()
 
         if not token_value:
             cls._mcp_unauthorized(

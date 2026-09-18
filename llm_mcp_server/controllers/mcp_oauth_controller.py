@@ -15,20 +15,23 @@ from ..oauth import (
     redirect_uri_with_params,
 )
 
-
 def _json_response(payload, status=200):
     return request.make_json_response(payload, status=status)
 
 
 def _oauth_error(error, description, status=400):
-    return _json_response(
-        {"error": error, "error_description": description}, status=status
-    )
+    return _json_response({"error": error, "error_description": description}, status=status)
 
 
 class MCPOAuthController(http.Controller):
-    def _config(self):
-        return request.env["llm.mcp.server.config"].sudo().get_active_config()
+    def _config(self, resource=None, endpoint_path=None):
+        Config = request.env["llm.mcp.server.config"].sudo()
+        resource = resource or request.params.get("resource")
+        if resource:
+            return Config.get_config_for_resource(resource)
+        if endpoint_path:
+            return Config.get_config_for_request(endpoint_path)
+        return Config.get_active_config()
 
     def _cors_json(self, payload, status=200):
         response = _json_response(payload, status=status)
@@ -42,6 +45,7 @@ class MCPOAuthController(http.Controller):
         [
             "/.well-known/oauth-protected-resource",
             "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-protected-resource/mcp/<string:server_name>",
         ],
         type="http",
         auth="public",
@@ -49,8 +53,9 @@ class MCPOAuthController(http.Controller):
         csrf=False,
         cors="*",
     )
-    def protected_resource_metadata(self, **kwargs):
-        config = self._config()
+    def protected_resource_metadata(self, server_name=None, **kwargs):
+        endpoint_path = f"/mcp/{server_name}" if server_name else "/mcp"
+        config = self._config(endpoint_path=endpoint_path)
         if not config.oauth_enabled:
             return self._cors_json(
                 {"error": "oauth_disabled", "error_description": "OAuth is disabled"},
@@ -98,9 +103,7 @@ class MCPOAuthController(http.Controller):
         redirect_uris = data.get("redirect_uris") or []
         if isinstance(redirect_uris, str):
             redirect_uris = [redirect_uris]
-        if not redirect_uris or not all(
-            is_safe_redirect_uri(uri) for uri in redirect_uris
-        ):
+        if not redirect_uris or not all(is_safe_redirect_uri(uri) for uri in redirect_uris):
             return _oauth_error(
                 "invalid_redirect_uri",
                 "redirect_uris is required and each URI must be HTTPS or localhost HTTP",
@@ -109,9 +112,7 @@ class MCPOAuthController(http.Controller):
         grant_types = data.get("grant_types") or ["authorization_code", "refresh_token"]
         auth_method = data.get("token_endpoint_auth_method") or "none"
         if auth_method not in ("none", "client_secret_post", "client_secret_basic"):
-            return _oauth_error(
-                "invalid_client_metadata", "Unsupported token_endpoint_auth_method"
-            )
+            return _oauth_error("invalid_client_metadata", "Unsupported token_endpoint_auth_method")
 
         client_secret = None
         confidential = auth_method != "none"
@@ -139,9 +140,7 @@ class MCPOAuthController(http.Controller):
             "state": params.get("state"),
             "scope": params.get("scope") or MCP_OAUTH_SCOPE,
             "code_challenge": params.get("code_challenge"),
-            "code_challenge_method": (
-                params.get("code_challenge_method") or "S256"
-            ).upper(),
+            "code_challenge_method": (params.get("code_challenge_method") or "S256").upper(),
             "resource": params.get("resource"),
         }
 
@@ -154,9 +153,7 @@ class MCPOAuthController(http.Controller):
         query = {"error": error, "error_description": description}
         if state:
             query["state"] = state
-        return request.redirect(
-            redirect_uri_with_params(redirect_uri, query), local=False
-        )
+        return request.redirect(redirect_uri_with_params(redirect_uri, query), local=False)
 
     @http.route(
         "/mcp/oauth/authorize",
@@ -176,10 +173,7 @@ class MCPOAuthController(http.Controller):
         client = (
             request.env["llm.mcp.oauth.client"]
             .sudo()
-            .search(
-                [("client_id", "=", params["client_id"]), ("active", "=", True)],
-                limit=1,
-            )
+            .search([("client_id", "=", params["client_id"]), ("active", "=", True)], limit=1)
         )
         if not client:
             return request.render(
@@ -196,10 +190,7 @@ class MCPOAuthController(http.Controller):
         if not client.allows_redirect(params["redirect_uri"]):
             return request.render(
                 "llm_mcp_server.mcp_oauth_error",
-                {
-                    "title": "Invalid redirect",
-                    "message": "redirect_uri is not registered for this client.",
-                },
+                {"title": "Invalid redirect", "message": "redirect_uri is not registered for this client."},
             )
         if params["code_challenge_method"] != "S256" or not params["code_challenge"]:
             return self._authorize_error_redirect(
@@ -208,9 +199,7 @@ class MCPOAuthController(http.Controller):
                 "PKCE S256 code_challenge is required",
                 params["state"],
             )
-        resource = canonical_resource_uri(
-            params["resource"] or config.get_mcp_server_url()
-        )
+        resource = canonical_resource_uri(params["resource"] or config.get_mcp_server_url())
         expected = canonical_resource_uri(config.get_mcp_server_url())
         if resource != expected:
             return self._authorize_error_redirect(
@@ -255,16 +244,11 @@ class MCPOAuthController(http.Controller):
         client = (
             request.env["llm.mcp.oauth.client"]
             .sudo()
-            .search(
-                [("client_id", "=", params["client_id"]), ("active", "=", True)],
-                limit=1,
-            )
+            .search([("client_id", "=", params["client_id"]), ("active", "=", True)], limit=1)
         )
         if not client or not client.allows_redirect(params["redirect_uri"]):
             raise BadRequest("Invalid client or redirect_uri")
-        resource = canonical_resource_uri(
-            params["resource"] or config.get_mcp_server_url()
-        )
+        resource = canonical_resource_uri(params["resource"] or config.get_mcp_server_url())
         code = request.env["llm.mcp.oauth.authorization.code"].issue(
             client,
             request.env.user,
@@ -310,27 +294,35 @@ class MCPOAuthController(http.Controller):
         cors="*",
     )
     def token(self, **kwargs):
-        config = self._config()
+        client, client_secret, params = self._extract_client()
+        resource = params.get("resource")
+        if not resource and params.get("grant_type") == "authorization_code":
+            code = (
+                request.env["llm.mcp.oauth.authorization.code"]
+                .sudo()
+                .search([("code", "=", params.get("code"))], limit=1)
+            )
+            resource = code.resource
+        if not resource and params.get("grant_type") == "refresh_token":
+            token = (
+                request.env["llm.mcp.oauth.token"]
+                .sudo()
+                .search([("refresh_token", "=", params.get("refresh_token"))], limit=1)
+            )
+            resource = token.resource
+        config = self._config(resource=resource)
         if not config.oauth_enabled:
             return _oauth_error("invalid_request", "OAuth is disabled", status=404)
-        client, client_secret, params = self._extract_client()
         if not client:
             return _oauth_error("invalid_client", "Unknown client_id", status=401)
         if client.is_confidential and not client.check_secret(client_secret):
             return _oauth_error("invalid_client", "Invalid client secret", status=401)
         if not client.is_confidential and client_secret:
-            return _oauth_error(
-                "invalid_client",
-                "Public clients must not send a client_secret",
-                status=401,
-            )
+            return _oauth_error("invalid_client", "Public clients must not send a client_secret", status=401)
 
         grant_type = params.get("grant_type")
         if not client.allows_grant(grant_type):
-            return _oauth_error(
-                "unauthorized_client",
-                f"Grant {grant_type} is not allowed for this client",
-            )
+            return _oauth_error("unauthorized_client", f"Grant {grant_type} is not allowed for this client")
 
         if grant_type == "authorization_code":
             return self._token_authorization_code(config, client, params)
@@ -344,19 +336,14 @@ class MCPOAuthController(http.Controller):
         code_value = params.get("code")
         redirect_uri = params.get("redirect_uri")
         code_verifier = params.get("code_verifier")
-        resource = canonical_resource_uri(
-            params.get("resource") or config.get_mcp_server_url()
-        )
+        resource = canonical_resource_uri(params.get("resource") or config.get_mcp_server_url())
         code = (
             request.env["llm.mcp.oauth.authorization.code"]
             .sudo()
             .search([("code", "=", code_value)], limit=1)
         )
         if not code or not code.is_valid(client, redirect_uri, code_verifier, resource):
-            return _oauth_error(
-                "invalid_grant",
-                "Authorization code is invalid, expired, or PKCE failed",
-            )
+            return _oauth_error("invalid_grant", "Authorization code is invalid, expired, or PKCE failed")
         code.consumed = True
         token = request.env["llm.mcp.oauth.token"].issue(
             client, code.user_id, resource, code.scope, with_refresh=True
@@ -382,9 +369,7 @@ class MCPOAuthController(http.Controller):
         resource = canonical_resource_uri(params.get("resource") or token.resource)
         expected = canonical_resource_uri(config.get_mcp_server_url())
         if resource != expected:
-            return _oauth_error(
-                "invalid_target", "resource must be the MCP server canonical URI"
-            )
+            return _oauth_error("invalid_target", "resource must be the MCP server canonical URI")
         token.revoke()
         new = request.env["llm.mcp.oauth.token"].issue(
             client, token.user_id, resource, token.scope, with_refresh=True
@@ -393,20 +378,13 @@ class MCPOAuthController(http.Controller):
 
     def _token_client_credentials(self, config, client, params):
         if not client.is_confidential:
-            return _oauth_error(
-                "unauthorized_client",
-                "client_credentials requires a confidential client",
-            )
+            return _oauth_error("unauthorized_client", "client_credentials requires a confidential client")
         if not client.service_user_id:
             return _oauth_error("invalid_client", "Client is missing a service user")
-        resource = canonical_resource_uri(
-            params.get("resource") or config.get_mcp_server_url()
-        )
+        resource = canonical_resource_uri(params.get("resource") or config.get_mcp_server_url())
         expected = canonical_resource_uri(config.get_mcp_server_url())
         if resource != expected:
-            return _oauth_error(
-                "invalid_target", "resource must be the MCP server canonical URI"
-            )
+            return _oauth_error("invalid_target", "resource must be the MCP server canonical URI")
         token = request.env["llm.mcp.oauth.token"].issue(
             client,
             client.service_user_id,
@@ -430,16 +408,8 @@ class MCPOAuthController(http.Controller):
             return _oauth_error("invalid_client", "Invalid client secret", status=401)
         token_value = params.get("token")
         if token_value:
-            tokens = (
-                request.env["llm.mcp.oauth.token"]
-                .sudo()
-                .search(
-                    [
-                        "|",
-                        ("access_token", "=", token_value),
-                        ("refresh_token", "=", token_value),
-                    ]
-                )
+            tokens = request.env["llm.mcp.oauth.token"].sudo().search(
+                ["|", ("access_token", "=", token_value), ("refresh_token", "=", token_value)]
             )
             tokens.revoke()
         return request.make_json_response({}, status=200)
@@ -454,9 +424,7 @@ class MCPOAuthController(http.Controller):
     )
     def introspect(self, **kwargs):
         client, client_secret, params = self._extract_client()
-        if not client or (
-            client.is_confidential and not client.check_secret(client_secret)
-        ):
+        if not client or (client.is_confidential and not client.check_secret(client_secret)):
             return _oauth_error("invalid_client", "Invalid client", status=401)
         token = (
             request.env["llm.mcp.oauth.token"]

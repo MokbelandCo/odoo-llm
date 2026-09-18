@@ -10,9 +10,12 @@ _logger = logging.getLogger(__name__)
 class LLMMCPSession(models.Model):
     _name = "llm.mcp.session"
     _description = "MCP Session Management"
-
     _sql_constraints = [
-        ("session_id_unique", "UNIQUE(session_id)", "Session ID must be unique")
+        (
+            "session_id_unique",
+            "UNIQUE(session_id)",
+            "Session ID must be unique",
+        ),
     ]
 
     # Required fields
@@ -31,6 +34,15 @@ class LLMMCPSession(models.Model):
         "res.users",
         index=True,
         help="User associated with session, set when Bearer token is available",
+    )
+    server_config_id = fields.Many2one(
+        "llm.mcp.server.config",
+        string="MCP Server",
+        required=True,
+        index=True,
+        ondelete="cascade",
+        default=lambda self: self._default_server_config_id(),
+        help="Server endpoint that owns this session.",
     )
 
     # Client data
@@ -56,16 +68,31 @@ class LLMMCPSession(models.Model):
         for session in self:
             if session.state == "initialized":
                 session.initialization_diagnostic = "Initialization completed."
-            elif (
-                session.state == "initializing" and session.last_method == "initialize"
-            ):
+            elif session.state == "initializing" and session.last_method == "initialize":
                 session.initialization_diagnostic = (
                     "Waiting for the client to send notifications/initialized."
                 )
             elif session.state == "initializing":
-                session.initialization_diagnostic = "The client continued without completing the initialized notification."
+                session.initialization_diagnostic = (
+                    "The client continued without completing the initialized notification."
+                )
             else:
                 session.initialization_diagnostic = "Initialize has not completed."
+
+    @api.model
+    def _default_server_config_id(self):
+        """Best-effort config for new sessions and module-upgrade column init.
+
+        Odoo evaluates this default in ``_init_column`` whenever
+        ``llm.mcp.session`` already has rows and ``server_config_id`` is new
+        or becoming required. ``get_active_config()`` raises when nothing
+        serves ``/mcp``, which would abort ``-u llm_mcp_server``.
+        """
+        Config = self.env["llm.mcp.server.config"].with_context(active_test=False)
+        return Config.search(
+            [("endpoint_path", "=", "/mcp")],
+            limit=1,
+        ) or Config.search([], limit=1)
 
     @api.model
     def generate_session_id(self):
@@ -85,8 +112,8 @@ class LLMMCPSession(models.Model):
             return False
 
     @api.model
-    def get_session(self, session_id):
-        """Get existing session by ID and optional user_id"""
+    def get_session(self, session_id, server_config=None):
+        """Get an existing session, optionally scoped to its server endpoint."""
         if not session_id:
             return self.browse()
 
@@ -96,11 +123,13 @@ class LLMMCPSession(models.Model):
 
         # Build search domain
         domain = [("session_id", "=", session_id)]
+        if server_config:
+            domain.append(("server_config_id", "=", server_config.id))
 
         return self.search(domain, limit=1)
 
     @api.model
-    def create_new_session(self, user_id=None):
+    def create_new_session(self, user_id=None, server_config=None):
         """Create a new session for initialize method (only for stateful mode)"""
         # Always generate a new session_id
         session_id = self.generate_session_id()
@@ -109,6 +138,9 @@ class LLMMCPSession(models.Model):
         session_vals = {
             "session_id": session_id,
             "state": "not_initialized",
+            "server_config_id": (
+                server_config or self.env["llm.mcp.server.config"].get_active_config()
+            ).id,
         }
         if user_id:
             session_vals["user_id"] = user_id
