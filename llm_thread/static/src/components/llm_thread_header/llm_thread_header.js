@@ -34,10 +34,12 @@ export class LLMThreadHeader extends Component {
   }
 
   /**
-   * Get the active thread
+   * Get the active thread.
+   * Prefer the explicit thread passed by the container (popup / chatter)
+   * so header actions never mutate a different AI surface.
    */
   get activeThread() {
-    return this.mailStore.discuss?.thread;
+    return this.props.thread || this.mailStore.discuss?.thread;
   }
 
   /**
@@ -45,6 +47,13 @@ export class LLMThreadHeader extends Component {
    */
   get hasActiveThread() {
     return this.activeThread?.model === "llm.thread";
+  }
+
+  /**
+   * Compact popup header: provider/model/tools/assistant live under "...".
+   */
+  get compact() {
+    return Boolean(this.props.compact);
   }
 
   /**
@@ -373,4 +382,5 @@ export class LLMThreadHeader extends Component {
 
 LLMThreadHeader.props = {
   thread: { type: Object, optional: true },
+  compact: { type: Boolean, optional: true },
 };

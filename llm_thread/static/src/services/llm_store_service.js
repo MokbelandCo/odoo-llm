@@ -55,7 +55,7 @@ export const llmStoreService = {
       // LLM-specific methods using standard fetchData approach
       async ensureThreadLoaded(threadId) {
         // Check if thread already exists in mailStore
-        const thread = mailStore.Thread.get({
+        let thread = mailStore.Thread.get({
           model: "llm.thread",
           id: threadId,
         });
@@ -63,8 +63,20 @@ export const llmStoreService = {
           return thread;
         }
 
-        // If thread not found, it might not be accessible to current user
-        // or wasn't loaded in init_messaging (e.g., old thread, different user)
+        // Fetch through the standard access-controlled mail.store path.
+        // Never sudo: inaccessible, archived, or deleted threads return null.
+        try {
+          thread = await mailStore.Thread.getOrFetch(
+            { model: "llm.thread", id: threadId },
+            ["display_name"]
+          );
+        } catch (error) {
+          console.warn(`Thread ${threadId} is not accessible:`, error);
+          return null;
+        }
+        if (thread?.model === "llm.thread") {
+          return thread;
+        }
         console.warn(`Thread ${threadId} not found in mailStore`);
         return null;
       },
@@ -263,7 +275,7 @@ export const llmStoreService = {
       },
 
       // Thread selection using standard Odoo patterns
-      async selectThread(threadId) {
+      async selectThread(threadId, { setAsDiscuss = true } = {}) {
         try {
           // Ensure thread is loaded using standard fetchData
           const thread = await this.ensureThreadLoaded(threadId);
@@ -271,8 +283,12 @@ export const llmStoreService = {
             throw new Error("Thread not found or failed to load");
           }
 
-          // Set as active thread in discuss - this is all we need!
-          thread.setAsDiscussThread();
+          // Popup windows pass setAsDiscuss=false so they do not overwrite
+          // the real Discuss conversation or another AI surface.
+          if (setAsDiscuss) {
+            thread.setAsDiscussThread();
+          }
+          return thread;
         } catch (error) {
           console.error("Error selecting thread:", error);
           notification.add(
@@ -281,11 +297,16 @@ export const llmStoreService = {
             ),
             { type: "danger" }
           );
+          return null;
         }
       },
 
       // Create new thread with default provider and model
-      async createNewThread({ recordModel, recordId } = {}) {
+      async createNewThread({
+        recordModel,
+        recordId,
+        select = true,
+      } = {}) {
         // Get first available provider and model
         const firstProvider = this.getFirstAvailableProvider();
         const firstModel = this.getFirstAvailableModel();
@@ -327,9 +348,11 @@ export const llmStoreService = {
         }
 
         const threadId = await orm.call("llm.thread", "create", [threadData]);
+        const createdId = Array.isArray(threadId) ? threadId[0] : threadId;
 
-        // Reload user threads and select the new one
-        await this.refreshThreadsAndSelect(threadId);
+        // Reload user threads and optionally select the new one as Discuss
+        await this.refreshThreadsAndSelect(createdId, { select });
+        return createdId;
       },
 
       // Get first available provider
@@ -344,16 +367,18 @@ export const llmStoreService = {
         return models.length > 0 ? models[0] : null;
       },
 
-      // Refresh threads and select specific thread
-      async refreshThreadsAndSelect(threadId) {
+      // Refresh threads and optionally select specific thread as Discuss
+      async refreshThreadsAndSelect(threadId, { select = true } = {}) {
         // Re-run init_messaging so the new thread lands in mail.store
         await mailStore.fetchStoreData("init_messaging");
 
         // Wait a moment for threads to be populated
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Select the newly created thread
-        await this.selectThread(threadId);
+        if (select) {
+          await this.selectThread(threadId);
+        }
+        return this.ensureThreadLoaded(threadId);
       },
 
       // Link a record to a thread
@@ -440,7 +465,10 @@ export const llmStoreService = {
         return this.streamingThreads.has(threadId);
       },
 
-      getStreamingStatus() {
+      getStreamingStatus(threadId = null) {
+        if (threadId) {
+          return this.isStreamingThread(threadId);
+        }
         const activeThread = mailStore.discuss?.thread;
         if (activeThread?.model === "llm.thread") {
           return this.isStreamingThread(activeThread.id);

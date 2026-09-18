@@ -17,6 +17,12 @@ export class LLMChatContainer extends Component {
   static props = {
     recordModel: { type: String, optional: true },
     recordId: { type: Number, optional: true },
+    thread: { type: Object, optional: true },
+    compactSidebar: { type: Boolean, optional: true },
+    hideSidebar: { type: Boolean, optional: true },
+    compactHeader: { type: Boolean, optional: true },
+    onSelectThread: { type: Function, optional: true },
+    onCreateThread: { type: Function, optional: true },
   };
 
   setup() {
@@ -30,15 +36,14 @@ export class LLMChatContainer extends Component {
 
     // Sidebar state
     this.state = useState({
-      // Desktop: collapse/expand state (default collapsed in chatter mode)
+      // Desktop: collapse/expand state (default collapsed in chatter/popup)
       isSidebarCollapsed: Boolean(
-        this.props.recordModel && this.props.recordId
+        this.props.compactSidebar ||
+          (this.props.recordModel && this.props.recordId)
       ),
       // Mobile: slide-in modal visibility
       isMobileSidebarVisible: false,
     });
-
-    // No need for local thread tracking - use mail.store.discuss.thread
   }
 
   /**
@@ -56,11 +61,29 @@ export class LLMChatContainer extends Component {
   }
 
   /**
-   * Get the active thread from standard mail.store.discuss
+   * Popup windows hide the conversation list; each window is one thread.
+   */
+  get hideSidebar() {
+    return Boolean(this.props.hideSidebar);
+  }
+
+  /**
+   * Popup windows collapse provider/model/tools/assistant under "...".
+   */
+  get compactHeader() {
+    return Boolean(this.props.compactHeader);
+  }
+
+  /**
+   * Get the active thread.
+   * Popup windows pass an explicit thread so they never share
+   * mail.store.discuss.thread with Discuss, chatter, or other popups.
    */
   get activeThread() {
-    const thread = this.mailStore.discuss?.thread;
-    return thread;
+    if (this.props.thread) {
+      return this.props.thread;
+    }
+    return this.mailStore.discuss?.thread;
   }
 
   /**
@@ -81,7 +104,10 @@ export class LLMChatContainer extends Component {
    * Check if this thread is currently streaming
    */
   get isStreaming() {
-    return this.llmStore.getStreamingStatus();
+    if (!this.activeThread) {
+      return false;
+    }
+    return this.llmStore.isStreamingThread(this.activeThread.id);
   }
 
   /**
@@ -112,7 +138,11 @@ export class LLMChatContainer extends Component {
    * @param {Number} threadId - Thread ID to select
    */
   async selectThread(threadId) {
-    await this.llmStore.selectThread(threadId);
+    if (this.props.onSelectThread) {
+      await this.props.onSelectThread(threadId);
+    } else {
+      await this.llmStore.selectThread(threadId);
+    }
     // Close mobile sidebar after selecting thread
     if (this.ui.isSmall) {
       this.closeMobileSidebar();
@@ -156,6 +186,10 @@ export class LLMChatContainer extends Component {
    * Passes record context if available (e.g., from chatter)
    */
   async createNewThread() {
+    if (this.props.onCreateThread) {
+      await this.props.onCreateThread();
+      return;
+    }
     await this.llmStore.createNewThread({
       recordModel: this.props.recordModel,
       recordId: this.props.recordId,
@@ -225,7 +259,8 @@ export class LLMChatContainer extends Component {
   }
 }
 
-// Accept any props (like updateActionState)
+// Accept extra client-action props (like updateActionState) as well as
+// the documented optional thread/controller props above.
 LLMChatContainer.props = {
   "*": true,
 };

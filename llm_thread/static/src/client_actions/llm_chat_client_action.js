@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 import { _t } from "@web/core/l10n/translation";
-import { Component, onWillDestroy, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { LLMChatContainer } from "@llm_thread/components/llm_chat_container/llm_chat_container";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -23,10 +23,6 @@ export class LLMChatClientAction extends Component {
 
     onWillStart(() => {
       return this.initializeLLMChat(this.props);
-    });
-
-    onWillDestroy(() => {
-      this.cleanup();
     });
   }
 
@@ -174,14 +170,6 @@ export class LLMChatClientAction extends Component {
         { type: "danger" }
       );
     }
-  }
-
-  /**
-   * Cleanup when component is destroyed
-   */
-  cleanup() {
-    // Stop any streaming
-    this.llmStore.destroy();
   }
 }
 
