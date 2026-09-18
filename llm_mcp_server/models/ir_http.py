@@ -1,9 +1,11 @@
 import logging
+import re
 
 from werkzeug.datastructures import WWWAuthenticate
 from werkzeug.exceptions import Unauthorized
 
 from odoo import models
+from odoo.exceptions import AccessDenied
 from odoo.http import request
 
 from ..oauth import canonical_resource_uri
@@ -13,6 +15,60 @@ _logger = logging.getLogger(__name__)
 
 class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
+
+    @classmethod
+    def _auth_method_bearer(cls):
+        """Odoo 17 shim matching core Odoo 19 ``_auth_method_bearer``.
+
+        Odoo 17 has no bearer API-key auth method. Keep this name so MCP
+        can call the same ``_auth_method_bearer`` as on the 19.0 branch.
+        Do not copy this shim onto 19.0 (core already defines it). If this
+        17 module is loaded on Odoo 18+, defer to core.
+        """
+        parent_method = getattr(super(), "_auth_method_bearer", None)
+        if callable(parent_method):
+            return parent_method()
+
+        headers = request.httprequest.headers
+
+        def get_http_authorization_bearer_token():
+            header = headers.get("Authorization")
+            if header and (m := re.match(r"^bearer\s+(.+)$", header, re.IGNORECASE)):
+                return m.group(1)
+            return None
+
+        def check_sec_headers():
+            return (
+                headers.get("Sec-Fetch-Dest") == "document"
+                and headers.get("Sec-Fetch-Mode") == "navigate"
+                and headers.get("Sec-Fetch-Site") in ("none", "same-origin")
+                and headers.get("Sec-Fetch-User") == "?1"
+            )
+
+        if token := get_http_authorization_bearer_token():
+            uid = request.env["res.users.apikeys"]._check_credentials(
+                scope="rpc", key=token
+            )
+            if not uid:
+                raise Unauthorized(
+                    "Invalid apikey",
+                    www_authenticate=WWWAuthenticate("bearer"),
+                )
+            if request.env.uid and request.env.uid != uid:
+                raise AccessDenied("Session user does not match the used apikey.")
+            request.update_env(user=uid)
+            request.session.can_save = False
+        elif not request.env.uid:
+            raise Unauthorized(
+                "User not authenticated, use an API Key with a Bearer Authorization header.",
+                www_authenticate=WWWAuthenticate("bearer"),
+            )
+        elif not check_sec_headers():
+            raise Unauthorized(
+                'Missing "Authorization" or Sec-headers for interactive usage.',
+                www_authenticate=WWWAuthenticate("bearer"),
+            )
+        cls._auth_method_user()
 
     @classmethod
     def _mcp_unauthorized(cls, message, error="invalid_token"):

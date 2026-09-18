@@ -20,6 +20,7 @@ This document records the 19.0 → 17.0 port of MCP unique URLs, tool allowlist,
 | Groups | `user.groups_id`, `res.groups.category_id` | `user.all_group_ids`, `privilege_id` / `res.groups.privilege` |
 | API keys | `res.users.apikeys._generate(scope, name)` | extra `expiration_date` |
 | HTTP test helper | `JsonHttpCase` wrapping `url_open(..., json=)` | native `url_open(json=)` |
+| HTTP bearer API keys | 17-only `ir.http._auth_method_bearer` shim (Odoo 17 core has no `_auth_method_bearer`; MCP still calls that name) | Core `_auth_method_bearer`; do not copy the 17 shim |
 | Access checks in tests | `check_access_rule` | `has_access` / `check_access` |
 | Popup thread refresh | `loadUserThreads()` | `mailStore.fetchStoreData("init_messaging")` |
 | Chat model picker | keep 17 chat-capable filter and `model.default` | 19 `is_default` display in header |
@@ -42,7 +43,7 @@ Keep these identical when porting the other direction:
 
 - Models: `llm.mcp.oauth.client.secret.show`
 - Fields: `endpoint_path`, `authentication_policy`, `tool_mode`, `tool_ids`, `category` (on `llm.tool`), `allowed_group_ids`, `is_public`
-- Methods: `get_config_for_request`, `get_exposed_tools`, `is_tool_exposed`, `get_allowed_assistants`, `_get_allowed_assistants_for_user`, `ensureThreadLoaded`, `createNewThread({ select })`
+- Methods: `get_config_for_request`, `get_exposed_tools`, `is_tool_exposed`, `get_allowed_assistants`, `_get_allowed_assistants_for_user`, `_auth_method_mcp_bearer` (calls core `_auth_method_bearer`; 17 shims that core name), `ensureThreadLoaded`, `createNewThread({ select })`
 - JS services: `llm.popup_hub`, `llm.chat_hub`
 - Constraints: `endpoint_path_unique`, `client_id_unique`, `session_id_unique`
 
