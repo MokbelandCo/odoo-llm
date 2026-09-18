@@ -92,7 +92,10 @@
 
         <!-- Tools Dropdown -->
         <div class="o-llm-thread-header-tools">
-            <Dropdown t-if="compact or availableTools.length > 0">
+            <Dropdown
+                t-if="compact or availableTools.length > 0"
+                menuClass="compact ? 'o-llm-thread-header-tools-menu' : ''"
+            >
                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle">
                     <i class="fa fa-wrench me-1" />
                     Tools
@@ -101,9 +104,7 @@
                     </t>
                 </button>
                 <t t-set-slot="content">
-                    <div
-            style="max-height: 300px; overflow-y: auto; min-width: 250px;"
-          >
+                    <div class="o-llm-thread-header-tools-list">
                         <t t-foreach="availableTools" t-as="tool" t-key="tool.id">
                             <div class="dropdown-item">
                                 <div class="form-check">
