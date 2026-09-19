@@ -37,6 +37,8 @@ This document records the 19.0 → 17.0 port of MCP unique URLs, tool allowlist,
 
 `llm_mcp` (HTTP client + OAuth callback) was already on 17.0 and was not re-derived from 19.0 in this port.
 
+`llm_dummy` is a local/dev helper: service name `dummy`, XML IDs `llm_provider_dummy` / `llm_model_dummy_chat`. Port the same names to 19.0 when that branch needs popup/chat UI without an external API.
+
 ## Shared names introduced by this port
 
 Keep these identical when porting the other direction:
@@ -45,6 +47,7 @@ Keep these identical when porting the other direction:
 - Fields: `endpoint_path`, `authentication_policy`, `tool_mode`, `tool_ids`, `category` (on `llm.tool`), `allowed_group_ids`, `is_public`
 - Methods: `get_config_for_request`, `get_exposed_tools`, `is_tool_exposed`, `get_allowed_assistants`, `_get_allowed_assistants_for_user`, `_auth_method_mcp_bearer` (calls core `_auth_method_bearer`; 17 shims that core name), `ensureThreadLoaded`, `createNewThread({ select })`
 - JS services: `llm.popup_hub`, `llm.chat_hub`
+- Dummy provider: service `dummy`, XML IDs `llm_provider_dummy`, `llm_model_dummy_chat`
 - Constraints: `endpoint_path_unique`, `client_id_unique`, `session_id_unique`
 
 ## Workflow

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo noupdate="1">
+    <record id="llm_provider_dummy" model="llm.provider">
+        <field name="name">Dummy Provider</field>
+        <field name="service">dummy</field>
+        <field name="active" eval="True" />
+    </record>
+    <record id="llm_model_dummy_chat" model="llm.model">
+        <field name="name">dummy-chat</field>
+        <field name="provider_id" ref="llm_provider_dummy" />
+        <field name="model_use">chat</field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+    </record>
+</odoo>
