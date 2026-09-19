@@ -1,3 +1,15 @@
+17.0.1.4.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] OAuth authorize/error pages no longer crash with ``KeyError: 'website'`` when Website is installed
+* [FIX] Authorization redirects now build the callback URL (``urlunparse`` was not imported)
+* [ADD] HTTP tests for the login-gated consent page, allow/deny, and PKCE token exchange
+* [ADD] OAuth 2.1 for the MCP HTTP resource server (RFC 9728 / 8414 / 7591 / 8707)
+* [ADD] Protected resource and authorization server well-known metadata
+* [ADD] Authorization code + PKCE, refresh tokens, client credentials, and DCR
+* [IMP] ``WWW-Authenticate`` on 401 now advertises ``resource_metadata``
+* [IMP] Bearer auth accepts OAuth access tokens or existing Odoo API keys
+
 18.0.1.3.1 (2026-01-07)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

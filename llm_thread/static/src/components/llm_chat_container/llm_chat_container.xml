@@ -3,7 +3,7 @@
     <t t-name="llm_thread.LLMChatContainer">
         <div class="o_LLMChatContainer h-100 d-flex flex-row overflow-hidden">
             <!-- Mobile: Backdrop overlay -->
-            <t t-if="isSmall">
+            <t t-if="isSmall and !hideSidebar">
                 <div
           class="o-llm-sidebar-backdrop"
           t-att-class="{ 'o-visible': state.isMobileSidebarVisible }"
@@ -13,7 +13,7 @@
 
             <!-- Mobile Sidebar: Slide-in from left (shown when isSmall = true) -->
             <div
-        t-if="isSmall"
+        t-if="isSmall and !hideSidebar"
         class="o-llm-sidebar d-flex flex-column border-end"
         t-att-class="{
                     'o-mobile': true,
@@ -87,7 +87,7 @@
 
             <!-- Desktop Sidebar: Expand/collapse pattern (shown when isSmall = false) -->
             <div
-        t-if="!isSmall"
+        t-if="!isSmall and !hideSidebar"
         class="o-llm-sidebar d-flex flex-column border-end"
         t-att-style="state.isSidebarCollapsed ? 'width: 48px;' : 'width: 280px;'"
       >
@@ -193,6 +193,7 @@
           class="d-flex align-items-center p-2 border-bottom flex-shrink-0"
         >
                     <button
+            t-if="!hideSidebar"
             class="btn btn-sm btn-secondary me-2"
             t-on-click="openMobileSidebar"
             title="Show conversations"
@@ -218,7 +219,11 @@
           class="d-flex flex-column flex-grow-1 overflow-hidden"
         >
                     <!-- Thread Header with dropdowns (desktop only) -->
-                    <LLMThreadHeader t-if="!isSmall" thread="activeThread" />
+                    <LLMThreadHeader
+            t-if="!isSmall"
+            thread="activeThread"
+            compact="compactHeader"
+          />
 
                     <!-- Thread area - reuse mail's Thread component -->
                     <div

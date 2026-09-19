@@ -102,6 +102,21 @@ class LLMTool(models.Model):
         "Set to false to manually manage this tool's configuration.",
     )
 
+    # Tool category, used by the record rules in security/llm_tool_rules.xml to
+    # decide which tools a user may see. Bridge modules add their own values
+    # with ``selection_add``.
+    category = fields.Selection(
+        [
+            ("general", "General"),
+            ("technical", "Technical"),
+        ],
+        string="Tool Category",
+        default="general",
+        help="Category determines which user groups can access this tool via "
+        "Odoo Record Rules. Third-party modules should use `selection_add` to "
+        "register additional categories.",
+    )
+
     _sql_constraints = [
         (
             "unique_function_tool",

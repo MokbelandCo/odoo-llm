@@ -377,6 +377,7 @@ export const llmStoreService = {
           }
 
           threadService.setDiscussThread(thread, false);
+          return thread;
         } catch (error) {
           console.error("Error selecting thread:", error);
           notification.add(
@@ -385,11 +386,12 @@ export const llmStoreService = {
             ),
             { type: "danger" }
           );
+          return null;
         }
       },
 
       // Create new thread with default provider and model
-      async createNewThread({ recordModel, recordId } = {}) {
+      async createNewThread({ recordModel, recordId, select = true } = {}) {
         await this.isReady;
         // Get first available provider and a chat-capable model
         const firstProvider = this.getFirstAvailableProvider();
@@ -432,9 +434,11 @@ export const llmStoreService = {
         }
 
         const threadId = await orm.call("llm.thread", "create", [threadData]);
+        const createdId = Array.isArray(threadId) ? threadId[0] : threadId;
 
-        // Reload user threads and select the new one
-        await this.refreshThreadsAndSelect(threadId);
+        // Reload user threads and optionally select the new one
+        await this.refreshThreadsAndSelect(createdId, { select });
+        return createdId;
       },
 
       // Get first available provider
@@ -463,10 +467,13 @@ export const llmStoreService = {
         );
       },
 
-      // Refresh threads and select specific thread
-      async refreshThreadsAndSelect(threadId) {
+      // Refresh threads and optionally select specific thread
+      async refreshThreadsAndSelect(threadId, { select = true } = {}) {
         await this.loadUserThreads();
-        await this.selectThread(threadId);
+        if (select) {
+          await this.selectThread(threadId);
+        }
+        return this.ensureThreadLoaded(threadId);
       },
 
       // Link a record to a thread

@@ -1,0 +1,174 @@
+.o-llm-Systray-toggler {
+  color: inherit;
+  background: transparent;
+  border: 0;
+
+  .fa {
+    line-height: inherit;
+  }
+
+  &:hover,
+  &[aria-pressed="true"] {
+    color: var(--NavBar-entry-color--hover, #{$o-navbar-entry-color--hover});
+  }
+}
+
+.o-llm-ChatHub {
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+
+  &--small {
+    .o-llm-ChatHub-switcher {
+      position: fixed;
+      top: $o-navbar-height;
+      left: 0;
+      right: 0;
+      z-index: $zindex-modal + 1;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+    }
+  }
+}
+
+.o-llm-ChatWindow {
+  // Named container so tool widgets can cap width against the popup itself,
+  // not a shrink-to-fit message ancestor (percentage max-width is circular there).
+  container-type: inline-size;
+  container-name: llm-popup-chat;
+  position: fixed;
+  bottom: 0;
+  width: 380px;
+  max-width: 100%;
+  min-width: 0;
+  height: Min(95vh, 380px * 15 / 9);
+  z-index: $zindex-sticky;
+  background-color: $o-view-background-color;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-bottom-width: 0;
+  border-radius: 0.5rem 0.5rem 0 0;
+
+  &.o-focused {
+    z-index: $zindex-sticky + 1;
+  }
+
+  &.o-folded:not(.o-mobile) {
+    height: auto;
+    width: 240px;
+    cursor: pointer;
+
+    .o-llm-ChatWindow-body {
+      display: none;
+    }
+  }
+
+  &.o-mobile {
+    top: $o-navbar-height;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    z-index: $zindex-modal;
+  }
+
+  .o-llm-ChatWindow-header {
+    min-height: 2.5rem;
+    background-color: $o-view-background-color;
+  }
+
+  .o-llm-ChatWindow-body {
+    min-width: 0;
+    min-height: 0;
+
+    .o_LLMChatContainer {
+      min-width: 0;
+      min-height: 0;
+
+      .o-llm-thread-header {
+        flex-wrap: nowrap;
+        min-height: auto;
+        padding: 0.5rem;
+        gap: 0.25rem;
+      }
+
+      .o-llm-composer-area {
+        padding: 0.5rem !important;
+      }
+
+      .o-llm-thread-area {
+        min-width: 0;
+        overflow-x: hidden;
+      }
+    }
+
+    // Mail messages default to flex-shrink: 0; a wide tool widget then
+    // widens the whole thread and every bubble becomes unreadable.
+    .o-mail-Thread,
+    .o-mail-Message,
+    .o-mail-Message-core,
+    .o-mail-Message-contentContainer,
+    .o-mail-Message-content,
+    .o-mail-Message-textContent,
+    .o-discuss-text-body,
+    .o-mail-Message-body {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .o-mail-Message-core {
+      flex-shrink: 1;
+    }
+
+    .o-mail-Message-body img {
+      max-width: 100%;
+    }
+
+    // Keep the tool result card strictly inside the popup. 4.75rem accounts
+    // for thread padding and the message sidebar so the card is narrower
+    // than the window itself.
+    .o_llm_tool_result,
+    .o_llm_tool_calls {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 18.5rem; // fallback if container query units are unavailable
+      max-width: calc(100cqi - 4.75rem);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .o_llm_tool_result {
+      .o_llm_tool_result_header {
+        flex-wrap: wrap;
+        column-gap: 0.25rem;
+        min-width: 0;
+
+        strong,
+        span {
+          min-width: 0;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+      }
+
+      pre {
+        max-width: 100%;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+    }
+
+    .o_llm_tool_calls .badge {
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+}

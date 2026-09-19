@@ -6,10 +6,10 @@ Connect in-Odoo AI assistants to **external** MCP servers and import their tools
 
 This is the inverse of `llm_mcp_server`:
 
-| Module | Role |
-|--------|------|
+| Module                  | Role                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `llm_mcp` (this module) | Odoo is an MCP **client**. It starts an external stdio server and registers that server's tools for LLM chat. |
-| `llm_mcp_server` | Odoo is an MCP **server**. Claude Desktop / Cursor connect *to* Odoo. |
+| `llm_mcp_server`        | Odoo is an MCP **server**. Claude Desktop / Cursor connect _to_ Odoo.                                         |
 
 Upstream Apexive dropped `llm_mcp` from 18.0 as not-ready. This 17.0 module is a backport of the 16.0 client, adapted to the 17.0 `llm.tool` execute/schema APIs.
 
@@ -30,6 +30,19 @@ Dependencies: `llm`, `llm_tool`.
 5. Use **Refresh Tools** after the remote tool list changes
 
 Imported tools appear on `llm.tool` with implementation **MCP Client** and can be attached to assistants like any other tool.
+
+## Configure an HTTP MCP server (OAuth)
+
+1. Open **LLM → Configuration → MCP Clients**
+2. Create a server with transport **Streamable HTTP** and the remote `/mcp` URL
+3. Choose authentication:
+   - **None** for open servers
+   - **Static Bearer Token** for API keys
+   - **OAuth 2.1** for RFC 9728 discovery
+4. For OAuth client credentials, set client ID and secret, then **Start Server**
+5. For authorization code + PKCE, set the client ID and click **Authorize**
+
+The client sends RFC 8707 `resource` on token requests and retries once after a `401` with `WWW-Authenticate: resource_metadata=...`.
 
 ## Odoo 17 notes
 

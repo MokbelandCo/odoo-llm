@@ -32,7 +32,7 @@ Use cases include customer support automation, data analysis, training assistanc
 Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
-    "version": "17.0.1.5.0",  # Last updated: commit 0d7f9a7b (2026-09-05)
+    "version": "17.0.1.6.0",
     "depends": ["base", "mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
@@ -47,6 +47,8 @@ Contact: support@apexive.com
         "web.assets_backend": [
             # Services - LLM store service for integration with mail.store
             "llm_thread/static/src/services/llm_store_service.js",
+            "llm_thread/static/src/services/llm_popup_hub_state.js",
+            "llm_thread/static/src/services/llm_popup_hub_service.js",
             # Components - LLM Chat Container using existing mail components
             "llm_thread/static/src/components/llm_chat_container/llm_chat_container.js",
             "llm_thread/static/src/components/llm_chat_container/llm_chat_container.xml",
@@ -65,6 +67,14 @@ Contact: support@apexive.com
             "llm_thread/static/src/components/llm_tool_message/llm_tool_message.js",
             "llm_thread/static/src/components/llm_tool_message/llm_tool_message.xml",
             "llm_thread/static/src/components/llm_tool_message/llm_tool_message.scss",
+            # Global AI popup shell (independent from Discuss ChatHub)
+            "llm_thread/static/src/components/llm_chat_window/llm_chat_window.js",
+            "llm_thread/static/src/components/llm_chat_window/llm_chat_window.xml",
+            "llm_thread/static/src/components/llm_chat_hub/llm_chat_hub.js",
+            "llm_thread/static/src/components/llm_chat_hub/llm_chat_hub.xml",
+            "llm_thread/static/src/components/llm_chat_hub/llm_chat_hub.scss",
+            "llm_thread/static/src/components/llm_chat_systray/llm_chat_systray.js",
+            "llm_thread/static/src/components/llm_chat_systray/llm_chat_systray.xml",
             # Patches - Safe extensions of mail components with conditional LLM logic
             "llm_thread/static/src/patches/composer_patch.js",
             "llm_thread/static/src/patches/composer_patch.xml",

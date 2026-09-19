@@ -1,6 +1,6 @@
 {
     "name": "LLM MCP Server",
-    "version": "17.0.1.3.3",
+    "version": "17.0.1.7.0",
     "category": "Technical",
     "summary": "MCP server exposing Odoo LLM tools to Claude Desktop and other MCP hosts",
     "description": """
@@ -10,10 +10,10 @@
         Odoo tools directly through a standards-compliant MCP server.
 
         Core Features:
-        • MCP 2025-06-18 protocol compliance with JSON-RPC 2.0
-        • Bearer token authentication with Odoo user integration
+        • MCP 2025-11-25 protocol compatibility with JSON-RPC 2.0
+        • Bearer authentication with OAuth 2.1 and Odoo API keys
         • Stateful session management with concurrent request handling
-        • Automatic tool discovery from llm.tool registry
+        • Automatic tool discovery from llm.tool registry, with optional per-config allowlist
         • Real-time tool execution with proper Odoo context
         • Health monitoring and protocol version negotiation
         • Production-ready with optimized logging and error handling
@@ -36,8 +36,11 @@
         "data/llm_mcp_server_config.xml",
         "views/llm_mcp_server_config_views.xml",
         "views/llm_mcp_session_views.xml",
+        "views/llm_mcp_oauth_client_views.xml",
+        "views/mcp_oauth_templates.xml",
         "views/res_users_views.xml",
         "wizards/mcp_key_wizard_views.xml",
+        "wizards/mcp_oauth_client_secret_wizard_views.xml",
     ],
     "images": [
         "static/description/banner.jpeg",
