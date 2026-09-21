@@ -41,6 +41,8 @@
                             <field name="provider_id" />
                             <field name="publisher_id" />
                             <field name="model_use" />
+                            <field name="supports_batch_transcription" invisible="model_use != 'transcription'" />
+                            <field name="supports_live_transcription" invisible="model_use != 'transcription'" />
                             <field name="default" />
                         </group>
                         <group>
@@ -68,6 +70,8 @@
                 <field name="name" />
                 <field name="provider_id" />
                 <field name="model_use" />
+                <field name="supports_batch_transcription" optional="hide" />
+                <field name="supports_live_transcription" optional="hide" />
                 <field name="default" />
                 <field name="active" invisible="1" />
             </tree>

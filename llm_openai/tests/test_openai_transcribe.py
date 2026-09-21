@@ -109,6 +109,25 @@ class TestOpenAITranscribe(TransactionCase):
         self.assertEqual(result["provider_request_id"], "tr_test_1")
         self.assertEqual(result["model_version"], "whisper-1")
 
+    def test_gpt_transcribe_uses_json_instead_of_verbose_json(self):
+        mini = self.env["llm.model"].create({
+            "name": "gpt-4o-mini-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        audio, meta = _load_fixture("right_eye_eighteen.wav")
+        result = mini.transcribe(
+            audio,
+            filename="right_eye_eighteen.wav",
+            content_type=meta["content_type"],
+            timestamps=True,
+        )
+        self.assertEqual(self.calls[0]["model"], "gpt-4o-mini-transcribe")
+        self.assertEqual(self.calls[0]["response_format"], "json")
+        self.assertNotIn("timestamp_granularities", self.calls[0])
+        self.assertEqual(result["text"], meta["text"])
+        self.assertEqual(result["segments"][0]["text"], meta["text"])
+
     def test_second_known_phrase_is_independent(self):
         audio, meta = _load_fixture("left_eye_sixteen.wav")
         result = self.model.transcribe(
@@ -142,8 +161,49 @@ class TestOpenAITranscribe(TransactionCase):
     def test_unsupported_format_is_rejected_before_the_sdk(self):
         with self.assertRaises(LLMTranscriptionError) as error:
             self.model.transcribe(b"not-audio", filename="note.txt")
-        self.assertEqual(error.exception.code, "unsupported_format")
+        self.assertEqual(error.exception.code, "invalid_audio")
+        self.assertFalse(error.exception.retryable)
         self.assertFalse(self.calls)
+
+    def test_whisper_is_batch_only_and_gpt_transcribe_can_be_live(self):
+        self.assertTrue(self.model.supports_batch_transcription)
+        self.assertFalse(self.model.supports_live_transcription)
+        live_model = self.env["llm.model"].create({
+            "name": "gpt-4o-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        self.assertTrue(live_model.supports_batch_transcription)
+        self.assertTrue(live_model.supports_live_transcription)
+
+    def test_live_lifecycle_for_realtime_eligible_model(self):
+        live_model = self.env["llm.model"].create({
+            "name": "gpt-4o-mini-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        opened = live_model.transcribe_live_open()
+        self.assertTrue(opened["handle"])
+        self.assertEqual(opened["transport"], "openai_realtime")
+        audio, _meta = _load_fixture("right_eye_eighteen.wav")
+        live_model.transcribe_live_append(opened["handle"], audio, start_ms=0, end_ms=1600)
+        committed = live_model.transcribe_live_commit(opened["handle"])
+        self.assertTrue(any(event["kind"] == "final" for event in committed["events"]))
+        closed = live_model.transcribe_live_close(opened["handle"])
+        self.assertTrue(closed["closed"])
+        with self.assertRaises(LLMTranscriptionError):
+            live_model.transcribe_live_append(opened["handle"], audio)
+
+    def test_whisper_cannot_enable_live_transcription(self):
+        from odoo.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            self.model.supports_live_transcription = True
+
+    def test_whisper_cannot_open_a_live_session(self):
+        with self.assertRaises(LLMTranscriptionError) as error:
+            self.model.transcribe_live_open()
+        self.assertEqual(error.exception.code, "unsupported_capability")
 
     def test_authentication_error_is_normalized(self):
         from odoo.addons.llm_openai.models import openai_provider as openai_mod

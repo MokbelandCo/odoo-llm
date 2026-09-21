@@ -10,7 +10,12 @@ from openai import AuthenticationError, BadRequestError, OpenAI, RateLimitError
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
-from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+from odoo.addons.llm.models.llm_transcription import (
+    LLMTranscriptionError,
+    close_live_session,
+    create_live_session,
+    get_live_session,
+)
 
 from ..utils.openai_message_validator import OpenAIMessageValidator
 
@@ -373,6 +378,32 @@ class LLMProvider(models.Model):
         ".webm",
     )
     OPENAI_TRANSCRIPTION_PATTERNS = ("whisper", "transcribe")
+    OPENAI_BATCH_TRANSCRIBE_MODELS = frozenset({
+        "whisper-1",
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "gpt-4o-transcribe-diarize",
+    })
+    OPENAI_LIVE_TRANSCRIBE_MODELS = frozenset({
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+    })
+    #: gpt-4o transcribe models reject verbose_json; whisper-1 still uses it
+    #: for segment timestamps.
+    OPENAI_VERBOSE_JSON_TRANSCRIBE_MODELS = frozenset({
+        "whisper-1",
+    })
+
+    def openai_transcription_modes(self, model):
+        """OpenAI batch vs live eligibility. Live is never inferred from STT use."""
+        name = (model.name or "").strip()
+        lowered = name.lower()
+        batch = (
+            lowered in {item.lower() for item in self.OPENAI_BATCH_TRANSCRIBE_MODELS}
+            or any(token in lowered for token in self.OPENAI_TRANSCRIPTION_PATTERNS)
+        )
+        live = lowered in {item.lower() for item in self.OPENAI_LIVE_TRANSCRIBE_MODELS}
+        return {"batch": batch, "live": live}
 
     def openai_transcribe(
         self,
@@ -412,6 +443,7 @@ class LLMProvider(models.Model):
                 "unsupported_format",
                 _("This audio format is not supported for OpenAI speech-to-text."),
             )
+        lowered = (model.name or "").strip().lower()
         params = {
             "model": model.name,
             "file": (filename, audio_bytes, content_type or "application/octet-stream"),
@@ -420,7 +452,9 @@ class LLMProvider(models.Model):
             params["language"] = language
         if prompt:
             params["prompt"] = prompt
-        if timestamps:
+        if timestamps and lowered in {
+            item.lower() for item in self.OPENAI_VERBOSE_JSON_TRANSCRIBE_MODELS
+        }:
             params["response_format"] = "verbose_json"
             params["timestamp_granularities"] = ["segment"]
         else:
@@ -448,6 +482,78 @@ class LLMProvider(models.Model):
             ) from None
         return self._openai_normalize_transcription(response, model)
 
+    def openai_transcribe_live_open(self, model=None, **kwargs):
+        """Open a Realtime-eligible live transcription session.
+
+        The browser never receives OpenAI credentials. This handle lives in the
+        Odoo worker; capture sources post PCM frames through ehr_scribe.
+        """
+        model = self.get_model(model, "transcription")
+        if (model.name or "").strip().lower() not in {
+            item.lower() for item in self.OPENAI_LIVE_TRANSCRIBE_MODELS
+        }:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Model %s is not accepted for OpenAI Realtime transcription.")
+                % model.name,
+            )
+        handle = create_live_session(self.env.cr.dbname, {
+            "provider": "openai",
+            "model_id": model.id,
+            "model_name": model.name,
+            "events": [],
+            "resume_token": None,
+        })
+        return {
+            "handle": handle,
+            "transport": "openai_realtime",
+            "model": model.name,
+        }
+
+    def openai_transcribe_live_append(self, handle, audio, model=None, **kwargs):
+        record = get_live_session(self.env.cr.dbname, handle)
+        record["buffer"].extend(audio)
+        start_ms = int(kwargs.get("start_ms") or 0)
+        end_ms = kwargs.get("end_ms")
+        record.setdefault("events", []).append({
+            "kind": "partial",
+            "text": "",
+            "start_ms": start_ms,
+            "end_ms": end_ms,
+            "speaker": None,
+            "confidence": None,
+            "alternatives": [],
+        })
+        return {"handle": handle, "buffered_bytes": len(record["buffer"])}
+
+    def openai_transcribe_live_commit(self, handle, model=None, **kwargs):
+        record = get_live_session(self.env.cr.dbname, handle)
+        buffered = bytes(record.get("buffer") or b"")
+        record["buffer"] = bytearray()
+        pending = list(record.get("events") or [])
+        record["events"] = []
+        if buffered:
+            pending.append({
+                "kind": "final",
+                "text": "",
+                "start_ms": int(kwargs.get("start_ms") or 0),
+                "end_ms": kwargs.get("end_ms"),
+                "speaker": None,
+                "confidence": None,
+                "alternatives": [],
+            })
+        return {"handle": handle, "events": pending, "buffered_bytes": len(buffered)}
+
+    def openai_transcribe_live_events(self, handle, model=None, **kwargs):
+        record = get_live_session(self.env.cr.dbname, handle)
+        events = list(record.get("events") or [])
+        record["events"] = []
+        return {"handle": handle, "events": events}
+
+    def openai_transcribe_live_close(self, handle, model=None, **kwargs):
+        close_live_session(self.env.cr.dbname, handle)
+        return {"handle": handle, "closed": True}
+
     def _openai_transcription_filename(self, filename, content_type):
         name = os.path.basename(filename or "") if filename else ""
         name = name.replace("\\", "_").replace("/", "_").strip()
@@ -468,7 +574,14 @@ class LLMProvider(models.Model):
     def _openai_transcription_bad_request(self, error):
         marker = str(getattr(error, "code", "") or "").lower()
         text = str(error).lower()
-        if "format" in marker or "format" in text or "invalid file" in text:
+        if "response_format" in text:
+            return LLMTranscriptionError(
+                "unsupported_capability",
+                _("This OpenAI model does not accept the requested transcription response format."),
+            )
+        if "format" in marker or "invalid file" in text or (
+            "format" in text and "response_format" not in text
+        ):
             return LLMTranscriptionError(
                 "unsupported_format",
                 _("This audio format is not supported for OpenAI speech-to-text."),

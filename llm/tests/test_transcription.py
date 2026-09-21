@@ -7,6 +7,26 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
 
 
+def _minimal_wav(pcm_bytes=b"\x00" * 64):
+    """Independently decodable 16-bit mono WAV for contract tests."""
+    data_size = len(pcm_bytes)
+    return (
+        b"RIFF"
+        + (36 + data_size).to_bytes(4, "little")
+        + b"WAVEfmt "
+        + (16).to_bytes(4, "little")
+        + (1).to_bytes(2, "little")
+        + (1).to_bytes(2, "little")
+        + (16000).to_bytes(4, "little")
+        + (32000).to_bytes(4, "little")
+        + (2).to_bytes(2, "little")
+        + (16).to_bytes(2, "little")
+        + b"data"
+        + data_size.to_bytes(4, "little")
+        + pcm_bytes
+    )
+
+
 @tagged("post_install", "-at_install", "llm")
 class TestTranscriptionContract(TransactionCase):
     def setUp(self):
@@ -21,7 +41,7 @@ class TestTranscriptionContract(TransactionCase):
             ]
 
         self.patch(provider_model, "_get_available_services", _services)
-        self.audio = b"RIFF" + b"\x00" * 64
+        self.audio = _minimal_wav()
         self.provider = self.env["llm.provider"].create(
             {
                 "name": "STT Test Provider",
@@ -204,3 +224,94 @@ class TestTranscriptionContract(TransactionCase):
         with self.assertRaises(LLMTranscriptionError) as error:
             self.model.transcribe(self.audio)
         self.assertEqual(error.exception.code, "throttling")
+        self.assertTrue(error.exception.retryable)
+        self.assertEqual(error.exception.http_status, 429)
+
+    def test_truncated_webm_is_rejected_before_the_adapter(self):
+        called = []
+
+        def stt_test_transcribe(record, audio, model=None, **kwargs):
+            called.append(True)
+            return {"text": "should not run"}
+
+        self._patch_transcribe(stt_test_transcribe)
+        with self.assertRaises(LLMTranscriptionError) as error:
+            self.model.transcribe(
+                b"\x00" * 40,
+                filename="chunk.webm",
+                content_type="audio/webm",
+            )
+        self.assertEqual(error.exception.code, "invalid_audio")
+        self.assertFalse(error.exception.retryable)
+        self.assertEqual(error.exception.action, "replace_chunk")
+        self.assertFalse(called)
+
+    def test_mime_mismatch_is_unsupported_format(self):
+        with self.assertRaises(LLMTranscriptionError) as error:
+            self.model.transcribe(
+                self.audio,
+                filename="chunk.webm",
+                content_type="audio/webm",
+            )
+        self.assertEqual(error.exception.code, "unsupported_format")
+        self.assertFalse(error.exception.retryable)
+
+    def test_live_is_not_inferred_from_transcription_use(self):
+        self.assertTrue(self.model.supports_batch_transcription)
+        self.assertFalse(self.model.supports_live_transcription)
+        with self.assertRaises(LLMTranscriptionError) as error:
+            self.model.transcribe_live_open()
+        self.assertEqual(error.exception.code, "unsupported_capability")
+
+    def test_live_session_lifecycle_is_provider_neutral(self):
+        provider_model = type(self.env["llm.provider"])
+        opened = {}
+
+        def stt_test_transcribe_live_open(record, model=None, **kwargs):
+            opened["model"] = model
+            return {"handle": "live-1", "transport": "test"}
+
+        def stt_test_transcribe_live_append(record, handle, audio, model=None, **kwargs):
+            return {"handle": handle, "buffered_bytes": len(audio)}
+
+        def stt_test_transcribe_live_commit(record, handle, model=None, **kwargs):
+            return {
+                "handle": handle,
+                "events": [{
+                    "kind": "final",
+                    "text": "hello",
+                    "start_ms": 0,
+                    "end_ms": 500,
+                }],
+            }
+
+        def stt_test_transcribe_live_events(record, handle, model=None, **kwargs):
+            return {"handle": handle, "events": []}
+
+        def stt_test_transcribe_live_close(record, handle, model=None, **kwargs):
+            return {"handle": handle, "closed": True}
+
+        for name, impl in (
+            ("stt_test_transcribe_live_open", stt_test_transcribe_live_open),
+            ("stt_test_transcribe_live_append", stt_test_transcribe_live_append),
+            ("stt_test_transcribe_live_commit", stt_test_transcribe_live_commit),
+            ("stt_test_transcribe_live_events", stt_test_transcribe_live_events),
+            ("stt_test_transcribe_live_close", stt_test_transcribe_live_close),
+        ):
+            if not hasattr(provider_model, name):
+                setattr(provider_model, name, lambda *args, **kwargs: None)
+            self.patch(provider_model, name, impl)
+
+        self.model.supports_live_transcription = True
+        opened_result = self.model.transcribe_live_open()
+        self.assertEqual(opened_result["handle"], "live-1")
+        appended = self.model.transcribe_live_append("live-1", self.audio)
+        self.assertEqual(appended["buffered_bytes"], len(self.audio))
+        committed = self.model.transcribe_live_commit("live-1")
+        self.assertEqual(committed["events"][0]["kind"], "final")
+        self.assertEqual(committed["events"][0]["text"], "hello")
+        self.assertTrue(committed["events"][0]["replaceable"] is False)
+        closed = self.model.transcribe_live_close("live-1")
+        self.assertTrue(closed["closed"])
+        self.assertEqual(opened["model"], self.model)
+
