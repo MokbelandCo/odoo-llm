@@ -109,6 +109,25 @@ class TestOpenAITranscribe(TransactionCase):
         self.assertEqual(result["provider_request_id"], "tr_test_1")
         self.assertEqual(result["model_version"], "whisper-1")
 
+    def test_gpt_transcribe_uses_json_instead_of_verbose_json(self):
+        mini = self.env["llm.model"].create({
+            "name": "gpt-4o-mini-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        audio, meta = _load_fixture("right_eye_eighteen.wav")
+        result = mini.transcribe(
+            audio,
+            filename="right_eye_eighteen.wav",
+            content_type=meta["content_type"],
+            timestamps=True,
+        )
+        self.assertEqual(self.calls[0]["model"], "gpt-4o-mini-transcribe")
+        self.assertEqual(self.calls[0]["response_format"], "json")
+        self.assertNotIn("timestamp_granularities", self.calls[0])
+        self.assertEqual(result["text"], meta["text"])
+        self.assertEqual(result["segments"][0]["text"], meta["text"])
+
     def test_second_known_phrase_is_independent(self):
         audio, meta = _load_fixture("left_eye_sixteen.wav")
         result = self.model.transcribe(

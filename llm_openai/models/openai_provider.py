@@ -388,6 +388,11 @@ class LLMProvider(models.Model):
         "gpt-4o-transcribe",
         "gpt-4o-mini-transcribe",
     })
+    #: gpt-4o transcribe models reject verbose_json; whisper-1 still uses it
+    #: for segment timestamps.
+    OPENAI_VERBOSE_JSON_TRANSCRIBE_MODELS = frozenset({
+        "whisper-1",
+    })
 
     def openai_transcription_modes(self, model):
         """OpenAI batch vs live eligibility. Live is never inferred from STT use."""
@@ -438,6 +443,7 @@ class LLMProvider(models.Model):
                 "unsupported_format",
                 _("This audio format is not supported for OpenAI speech-to-text."),
             )
+        lowered = (model.name or "").strip().lower()
         params = {
             "model": model.name,
             "file": (filename, audio_bytes, content_type or "application/octet-stream"),
@@ -446,7 +452,9 @@ class LLMProvider(models.Model):
             params["language"] = language
         if prompt:
             params["prompt"] = prompt
-        if timestamps:
+        if timestamps and lowered in {
+            item.lower() for item in self.OPENAI_VERBOSE_JSON_TRANSCRIBE_MODELS
+        }:
             params["response_format"] = "verbose_json"
             params["timestamp_granularities"] = ["segment"]
         else:
@@ -566,7 +574,14 @@ class LLMProvider(models.Model):
     def _openai_transcription_bad_request(self, error):
         marker = str(getattr(error, "code", "") or "").lower()
         text = str(error).lower()
-        if "format" in marker or "format" in text or "invalid file" in text:
+        if "response_format" in text:
+            return LLMTranscriptionError(
+                "unsupported_capability",
+                _("This OpenAI model does not accept the requested transcription response format."),
+            )
+        if "format" in marker or "invalid file" in text or (
+            "format" in text and "response_format" not in text
+        ):
             return LLMTranscriptionError(
                 "unsupported_format",
                 _("This audio format is not supported for OpenAI speech-to-text."),
