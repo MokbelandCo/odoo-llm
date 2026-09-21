@@ -39,6 +39,7 @@ class LLMModel(models.Model):
             ("multimodal", "Multimodal"),
             ("generation", "Generic binary generation"),
             ("image_generation", "Image Generation"),
+            ("transcription", "Speech to Text"),
         ]
 
     @api.model_create_multi
@@ -78,6 +79,50 @@ class LLMModel(models.Model):
         """
         return self.provider_id.generate(
             input_data, model=self, stream=stream, **kwargs
+        )
+
+    def transcribe(
+        self,
+        audio,
+        filename=None,
+        content_type=None,
+        language=None,
+        prompt=None,
+        stream=False,
+        timestamps=True,
+        diarization=False,
+        **kwargs,
+    ):
+        """Transcribe in-memory audio using this speech-to-text model.
+
+        Args:
+            audio: Audio bytes or a seekable byte stream. Storage references
+                such as media keys must never be passed here.
+            filename: Optional file name hint for the provider.
+            content_type: Optional MIME type of the audio payload.
+            language: Optional BCP-47 / ISO-639 language hint.
+            prompt: Optional vocabulary / domain hint.
+            stream: Request streaming when the provider supports it.
+            timestamps: Request timestamped segments when available.
+            diarization: Request speaker labels when the model supports them.
+            **kwargs: Additional provider-specific parameters.
+
+        Returns:
+            dict: Normalized transcription result (text, language, duration_ms,
+            timestamped segments, provider_request_id, model_version).
+        """
+        self.ensure_one()
+        return self.provider_id.transcribe(
+            audio,
+            model=self,
+            filename=filename,
+            content_type=content_type,
+            language=language,
+            prompt=prompt,
+            stream=stream,
+            timestamps=timestamps,
+            diarization=diarization,
+            **kwargs,
         )
 
     def action_open_fetch_this_model_wizard(self):

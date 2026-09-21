@@ -64,8 +64,9 @@ Features
 ========
 
 - Connect to OpenAI API with proper authentication
-- Support for all OpenAI models (GPT-4o, GPT-4, GPT-3.5, etc.)
+- Support for all OpenAI models (GPT-4o, GPT-4, GPT-3.5, Whisper, etc.)
 - Text embeddings support
+- Speech-to-text transcription (``whisper-1``, ``gpt-4o-transcribe``)
 - Function calling capabilities
 - Automatic model discovery
 - OpenAI-compatible endpoint support

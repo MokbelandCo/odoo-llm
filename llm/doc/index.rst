@@ -124,6 +124,41 @@ Provider Framework
     provider._dispatch('chat', messages=messages, model=model)
     provider._dispatch('embedding', text=text)
     provider._dispatch('generate', prompt=prompt, type='image')
+    provider._dispatch('transcribe', audio=audio_bytes, model=model)
+
+Speech to Text
+--------------
+
+``llm.model.model_use`` includes ``transcription`` ("Speech to Text"). Application
+code calls ``model.transcribe(audio, ...)`` with in-memory bytes or a seekable
+stream. Provider modules implement ``<service>_transcribe()`` and return a
+normalized dictionary:
+
+::
+
+    {
+        "text": str,
+        "language": str | None,
+        "duration_ms": int | None,
+        "segments": [
+            {
+                "text": str,
+                "start_ms": int | None,
+                "end_ms": int | None,
+                "speaker": str | None,
+                "confidence": float | None,
+                "alternatives": [{"text": str, "confidence": float | None}],
+            }
+        ],
+        "provider_request_id": str | None,
+        "model_version": str | None,
+    }
+
+Storage references such as media keys never enter provider modules. Failures are
+raised as ``LLMTranscriptionError`` with a stable code (unsupported capability,
+empty/invalid audio, unsupported format, size limit, authentication, throttling
+or provider failure) and must never include audio, transcripts, credentials or
+PHI.
 
 Technical Specifications
 ========================

@@ -62,8 +62,9 @@ odoo-bin -d your_db -i llm_assistant,llm_openai
 ## Features
 
 - Connect to OpenAI API with proper authentication
-- Support for all OpenAI models (GPT-4o, GPT-4, GPT-3.5, etc.)
+- Support for all OpenAI models (GPT-4o, GPT-4, GPT-3.5, Whisper, etc.)
 - Text embeddings support
+- Speech-to-text via the OpenAI audio transcription API
 - Function calling capabilities
 - Multimodal (vision) capabilities for GPT-4o and GPT-4 Vision
 - Automatic model discovery

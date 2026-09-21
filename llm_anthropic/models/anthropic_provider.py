@@ -6,6 +6,8 @@ from anthropic import Anthropic
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
 _logger = logging.getLogger(__name__)
 
 
@@ -110,6 +112,29 @@ class LLMProvider(models.Model):
         if stream:
             return self._anthropic_stream_response(params)
         return self._anthropic_process_response(params)
+
+    def anthropic_transcribe(
+        self,
+        audio,
+        model=None,
+        filename=None,
+        content_type=None,
+        language=None,
+        prompt=None,
+        stream=False,
+        timestamps=True,
+        diarization=False,
+        **kwargs,
+    ):
+        """Anthropic has no native speech-to-text API.
+
+        This adapter reports the capability as unsupported and never sends audio
+        to Claude chat or constructs an Anthropic client.
+        """
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native speech-to-text API."),
+        )
 
     def _anthropic_process_response(self, params):
         """Process non-streaming response from Anthropic.

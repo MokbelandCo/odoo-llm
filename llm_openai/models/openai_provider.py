@@ -1,12 +1,16 @@
 import io
 import json
 import logging
+import math
+import os
 import uuid
 
-from openai import OpenAI
+from openai import AuthenticationError, BadRequestError, OpenAI, RateLimitError
 
-from odoo import api, models
+from odoo import _, api, models
 from odoo.exceptions import UserError
+
+from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
 
 from ..utils.openai_message_validator import OpenAIMessageValidator
 
@@ -356,6 +360,204 @@ class LLMProvider(models.Model):
         response = self.client.embeddings.create(model=model.name, input=texts)
         return [r.embedding for r in response.data]
 
+    OPENAI_TRANSCRIBE_MAX_BYTES = 25 * 1024 * 1024
+    OPENAI_TRANSCRIBE_SUFFIXES = (
+        ".flac",
+        ".mp3",
+        ".mp4",
+        ".mpeg",
+        ".mpga",
+        ".m4a",
+        ".ogg",
+        ".wav",
+        ".webm",
+    )
+    OPENAI_TRANSCRIPTION_PATTERNS = ("whisper", "transcribe")
+
+    def openai_transcribe(
+        self,
+        audio,
+        model=None,
+        filename=None,
+        content_type=None,
+        language=None,
+        prompt=None,
+        stream=False,
+        timestamps=True,
+        diarization=False,
+        **kwargs,
+    ):
+        """Transcribe in-memory audio through the OpenAI audio transcription API."""
+        model = self.get_model(model, "transcription")
+        if stream:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Streaming speech-to-text is not implemented for this OpenAI model."),
+            )
+        if not isinstance(audio, (bytes, bytearray, memoryview)):
+            raise LLMTranscriptionError(
+                "invalid_audio",
+                _("Transcription audio must be bytes or a seekable stream."),
+            )
+        audio_bytes = bytes(audio)
+        if len(audio_bytes) > self.OPENAI_TRANSCRIBE_MAX_BYTES:
+            raise LLMTranscriptionError(
+                "size_limit",
+                _("Audio exceeds the OpenAI transcription size limit."),
+            )
+        filename = self._openai_transcription_filename(filename, content_type)
+        suffix = os.path.splitext(filename)[1].lower()
+        if suffix and suffix not in self.OPENAI_TRANSCRIBE_SUFFIXES:
+            raise LLMTranscriptionError(
+                "unsupported_format",
+                _("This audio format is not supported for OpenAI speech-to-text."),
+            )
+        params = {
+            "model": model.name,
+            "file": (filename, audio_bytes, content_type or "application/octet-stream"),
+        }
+        if language:
+            params["language"] = language
+        if prompt:
+            params["prompt"] = prompt
+        if timestamps:
+            params["response_format"] = "verbose_json"
+            params["timestamp_granularities"] = ["segment"]
+        else:
+            params["response_format"] = "json"
+        try:
+            response = self.client.audio.transcriptions.create(**params)
+        except LLMTranscriptionError:
+            raise
+        except AuthenticationError:
+            raise LLMTranscriptionError(
+                "authentication",
+                _("OpenAI rejected the transcription credentials."),
+            ) from None
+        except RateLimitError:
+            raise LLMTranscriptionError(
+                "throttling",
+                _("OpenAI is rate limiting speech-to-text requests."),
+            ) from None
+        except BadRequestError as error:
+            raise self._openai_transcription_bad_request(error) from None
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("OpenAI speech-to-text failed."),
+            ) from None
+        return self._openai_normalize_transcription(response, model)
+
+    def _openai_transcription_filename(self, filename, content_type):
+        name = os.path.basename(filename or "") if filename else ""
+        name = name.replace("\\", "_").replace("/", "_").strip()
+        if name in ("", ".", ".."):
+            extension = {
+                "audio/wav": ".wav",
+                "audio/x-wav": ".wav",
+                "audio/mpeg": ".mp3",
+                "audio/mp3": ".mp3",
+                "audio/mp4": ".m4a",
+                "audio/ogg": ".ogg",
+                "audio/webm": ".webm",
+                "audio/flac": ".flac",
+            }.get((content_type or "").lower(), ".wav")
+            return f"audio{extension}"
+        return name[:128]
+
+    def _openai_transcription_bad_request(self, error):
+        marker = str(getattr(error, "code", "") or "").lower()
+        text = str(error).lower()
+        if "format" in marker or "format" in text or "invalid file" in text:
+            return LLMTranscriptionError(
+                "unsupported_format",
+                _("This audio format is not supported for OpenAI speech-to-text."),
+            )
+        if "empty" in text:
+            return LLMTranscriptionError(
+                "empty_audio",
+                _("Transcription requires audio bytes."),
+            )
+        if "too large" in text or "maximum" in text:
+            return LLMTranscriptionError(
+                "size_limit",
+                _("Audio exceeds the OpenAI transcription size limit."),
+            )
+        return LLMTranscriptionError(
+            "invalid_audio",
+            _("OpenAI rejected the audio payload."),
+        )
+
+    def _openai_normalize_transcription(self, response, model):
+        if hasattr(response, "model_dump"):
+            data = response.model_dump()
+        elif isinstance(response, dict):
+            data = response
+        else:
+            data = {"text": getattr(response, "text", "")}
+        duration = data.get("duration")
+        duration_ms = None
+        if duration is not None:
+            try:
+                duration_ms = int(float(duration) * 1000)
+            except (TypeError, ValueError):
+                duration_ms = None
+        segments = []
+        for item in data.get("segments") or []:
+            if not isinstance(item, dict):
+                continue
+            start_ms = None
+            end_ms = None
+            if item.get("start") is not None:
+                try:
+                    start_ms = int(float(item["start"]) * 1000)
+                except (TypeError, ValueError):
+                    start_ms = None
+            if item.get("end") is not None:
+                try:
+                    end_ms = int(float(item["end"]) * 1000)
+                except (TypeError, ValueError):
+                    end_ms = None
+            confidence = None
+            if item.get("avg_logprob") is not None:
+                try:
+                    confidence = max(0.0, min(1.0, math.exp(float(item["avg_logprob"]))))
+                except (TypeError, ValueError, OverflowError):
+                    confidence = None
+            speaker = item.get("speaker") or item.get("speaker_label")
+            alternatives = []
+            for alternative in item.get("alternatives") or []:
+                if isinstance(alternative, dict) and alternative.get("text") is not None:
+                    alternatives.append(
+                        {
+                            "text": alternative.get("text"),
+                            "confidence": alternative.get("confidence"),
+                        }
+                    )
+            segments.append(
+                {
+                    "text": item.get("text") or "",
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "speaker": speaker,
+                    "confidence": confidence,
+                    "alternatives": alternatives,
+                }
+            )
+        request_id = (
+            data.get("id")
+            or getattr(response, "id", None)
+            or getattr(response, "_request_id", None)
+        )
+        return {
+            "text": data.get("text") or "",
+            "language": data.get("language"),
+            "duration_ms": duration_ms,
+            "segments": segments,
+            "provider_request_id": request_id,
+            "model_version": getattr(model, "name", None) or data.get("model"),
+        }
+
     def openai_models(self, model_id=None):
         """List available OpenAI models"""
         if model_id:
@@ -383,6 +585,8 @@ class LLMProvider(models.Model):
 
         if "text-embedding" in model_id_lower or "embedding" in model_id_lower:
             capabilities = ["embedding"]
+        elif any(p in model_id_lower for p in self.OPENAI_TRANSCRIPTION_PATTERNS):
+            capabilities = ["transcription"]
         elif any(p in model_id_lower for p in self.OPENAI_VISION_PATTERNS):
             capabilities = ["chat", "multimodal"]
 
@@ -394,6 +598,13 @@ class LLMProvider(models.Model):
                 **model.model_dump(),
             },
         }
+
+    def _determine_model_use(self, name, capabilities):
+        if self.service == "openai":
+            lowered = (name or "").lower()
+            if any(token in lowered for token in self.OPENAI_TRANSCRIPTION_PATTERNS):
+                return "transcription"
+        return super()._determine_model_use(name, capabilities)
 
     def _validate_and_clean_messages(self, messages):
         """

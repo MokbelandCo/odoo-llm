@@ -3,12 +3,12 @@
     "summary": "OpenAI provider integration for LLM module",
     "description": """
         Implements OpenAI provider service for the LLM integration module.
-        Supports GPT models for chat and embedding capabilities.
+        Supports GPT models for chat, embedding, and speech-to-text capabilities.
     """,
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "17.0.1.4.0",
+    "version": "17.0.1.5.0",
     "depends": ["llm", "llm_tool", "llm_training"],
     "external_dependencies": {
         "python": ["openai"],

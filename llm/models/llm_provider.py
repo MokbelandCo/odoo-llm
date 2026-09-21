@@ -3,6 +3,12 @@ from datetime import datetime
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .llm_transcription import (
+    LLMTranscriptionError,
+    normalize_transcription_result,
+    require_audio_bytes,
+)
+
 
 class LLMProvider(models.Model):
     _name = "llm.provider"
@@ -176,6 +182,63 @@ class LLMProvider(models.Model):
             **kwargs,
         )
 
+    def transcribe(
+        self,
+        audio,
+        model=None,
+        filename=None,
+        content_type=None,
+        language=None,
+        prompt=None,
+        stream=False,
+        timestamps=True,
+        diarization=False,
+        **kwargs,
+    ):
+        """Transcribe in-memory audio using this provider.
+
+        Input is bytes or a seekable stream. Application storage references
+        never enter provider modules. Results and errors are normalized to the
+        core STT contract; provider-native objects do not escape adapters.
+        """
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        if model.model_use != "transcription":
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Model %s is not a speech-to-text model.") % model.name,
+            )
+        audio_bytes = require_audio_bytes(audio)
+        try:
+            result = self._dispatch(
+                "transcribe",
+                audio_bytes,
+                model=model,
+                filename=filename,
+                content_type=content_type,
+                language=language,
+                prompt=prompt,
+                stream=stream,
+                timestamps=timestamps,
+                diarization=diarization,
+                **kwargs,
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not support speech-to-text."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Speech-to-text failed for this provider."),
+            ) from None
+        return normalize_transcription_result(result)
+
     def list_models(self, model_id=None):
         """List available models from the provider"""
         return self._dispatch("models", model_id=model_id)
@@ -276,14 +339,16 @@ class LLMProvider(models.Model):
                  Default options: "chat", "embedding", "multimodal", "completion", etc.
 
         Priority Order:
-            1. embedding - Specialized embedding models
-            2. multimodal - Models with vision/image understanding
-            3. chat - General conversational models (default)
+            1. transcription - Speech-to-text models
+            2. embedding - Specialized embedding models
+            3. multimodal - Models with vision/image understanding
+            4. chat - General conversational models (default)
 
         Standard Capability Names:
             - "chat": Text-based conversations
             - "embedding"/"text-embedding": Vector embeddings
             - "multimodal"/"vision": Image/vision understanding
+            - "transcription"/"speech_to_text"/"stt": Speech to text
             - "completion": Text completion
             - "function_calling": Tool/function support
             Provider-specific: "ocr", "image_generation", etc.
@@ -305,18 +370,24 @@ class LLMProvider(models.Model):
             - llm_mistral.models.mistral_provider for a working example
             - _<provider>_parse_model() for setting capabilities
         """
-        # Priority 1: Embedding models (specialized, distinct use case)
+        # Priority 1: Speech-to-text models (specialized, distinct use case)
+        if any(
+            cap in capabilities for cap in ["transcription", "speech_to_text", "stt"]
+        ):
+            return "transcription"
+
+        # Priority 2: Embedding models (specialized, distinct use case)
         if (
             any(cap in capabilities for cap in ["embedding", "text-embedding"])
             or "embedding" in name.lower()
         ):
             return "embedding"
 
-        # Priority 2: Multimodal models (advanced capability)
+        # Priority 3: Multimodal models (advanced capability)
         if any(cap in capabilities for cap in ["multimodal", "vision"]):
             return "multimodal"
 
-        # Priority 3: Chat models (default for most LLMs)
+        # Priority 4: Chat models (default for most LLMs)
         return "chat"
 
     def get_model(self, model=None, model_use="chat"):

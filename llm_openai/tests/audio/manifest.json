@@ -1,0 +1,10 @@
+{
+  "right_eye_eighteen.wav": {
+    "text": "The right eye is eighteen.",
+    "content_type": "audio/wav"
+  },
+  "left_eye_sixteen.wav": {
+    "text": "The left eye is sixteen.",
+    "content_type": "audio/wav"
+  }
+}

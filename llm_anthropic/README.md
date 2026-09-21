@@ -1,6 +1,6 @@
 # Anthropic Provider for Odoo LLM Integration
 
-This module integrates Anthropic's Claude API with the Odoo LLM framework, providing access to Claude models for chat, tool calling, and extended thinking capabilities.
+This module integrates Anthropic's Claude API with the Odoo LLM framework, providing access to Claude models for chat, tool calling, and extended thinking capabilities. Anthropic currently has no native speech-to-text API; ``anthropic_transcribe()`` reports that capability as unsupported and never sends audio to Claude chat.
 
 **Module Type:** 🔧 Provider
 
