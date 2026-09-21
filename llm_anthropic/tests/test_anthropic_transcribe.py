@@ -72,7 +72,12 @@ class TestAnthropicTranscribe(TransactionCase):
         self.assertFalse(called)
 
     def test_anthropic_live_is_unsupported(self):
-        self.forced_stt_model.supports_live_transcription = True
+        from odoo.exceptions import ValidationError
+
+        self.assertFalse(self.forced_stt_model.supports_live_transcription)
+        self.assertFalse(self.forced_stt_model.supports_batch_transcription)
+        with self.assertRaises(ValidationError):
+            self.forced_stt_model.supports_live_transcription = True
         with self.assertRaises(LLMTranscriptionError) as error:
             self.forced_stt_model.transcribe_live_open()
         self.assertEqual(error.exception.code, "unsupported_capability")
