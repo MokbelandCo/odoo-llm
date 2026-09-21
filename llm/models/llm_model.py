@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class LLMModel(models.Model):
@@ -29,6 +30,88 @@ class LLMModel(models.Model):
     model_info = fields.Json()
     parameters = fields.Text()
     template = fields.Text()
+
+    # Batch vs live STT are distinct contracts. ``model_use=transcription``
+    # never implies live/realtime support by itself.
+    supports_batch_transcription = fields.Boolean(
+        string="Batch / File Transcription",
+        compute="_compute_transcription_modes",
+        store=True,
+        readonly=False,
+        help="Complete independently decodable audio file → final transcript.",
+    )
+    supports_live_transcription = fields.Boolean(
+        string="Live / Realtime Transcription",
+        compute="_compute_transcription_modes",
+        store=True,
+        readonly=False,
+        help="Persistent realtime session with partial and final events.",
+    )
+
+    @api.depends("model_use", "name", "provider_id", "provider_id.service")
+    def _compute_transcription_modes(self):
+        for model in self:
+            modes = model.provider_id._transcription_modes_for_model(model) if model.provider_id else {
+                "batch": False,
+                "live": False,
+            }
+            if model.model_use != "transcription":
+                model.supports_batch_transcription = False
+                model.supports_live_transcription = False
+            else:
+                model.supports_batch_transcription = bool(modes.get("batch"))
+                model.supports_live_transcription = bool(modes.get("live"))
+
+    @api.constrains(
+        "supports_batch_transcription",
+        "supports_live_transcription",
+        "model_use",
+        "name",
+        "provider_id",
+    )
+    def _check_transcription_modes(self):
+        """Administrators may disable a mode; they cannot enable one the provider rejects."""
+        for model in self:
+            if model.model_use != "transcription" or not model.provider_id:
+                continue
+            method = getattr(
+                model.provider_id,
+                "%s_transcription_modes" % model.provider_id.service,
+                None,
+            )
+            if not method:
+                continue
+            modes = method(model) or {}
+            if model.supports_live_transcription and not modes.get("live"):
+                raise ValidationError(
+                    _("Model %s is not accepted for live/realtime transcription.")
+                    % model.name
+                )
+            if model.supports_batch_transcription and not modes.get("batch"):
+                raise ValidationError(
+                    _("Model %s is not accepted for batch/file transcription.")
+                    % model.name
+                )
+
+    def _validate_transcription_mode(self, live=False):
+        self.ensure_one()
+        from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
+        if self.model_use != "transcription":
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s is not a speech-to-text model." % self.name,
+            )
+        if live and not self.supports_live_transcription:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s does not support live transcription." % self.name,
+            )
+        if not live and not self.supports_batch_transcription:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s does not support batch transcription." % self.name,
+            )
 
     @api.model
     def _get_available_model_usages(self):
@@ -112,6 +195,7 @@ class LLMModel(models.Model):
             timestamped segments, provider_request_id, model_version).
         """
         self.ensure_one()
+        self._validate_transcription_mode(live=False)
         return self.provider_id.transcribe(
             audio,
             model=self,
@@ -124,6 +208,37 @@ class LLMModel(models.Model):
             diarization=diarization,
             **kwargs,
         )
+
+    def transcribe_live_open(self, **kwargs):
+        """Open a provider-neutral live transcription session."""
+        self.ensure_one()
+        self._validate_transcription_mode(live=True)
+        return self.provider_id.transcribe_live_open(model=self, **kwargs)
+
+    def transcribe_live_append(self, handle, audio, **kwargs):
+        """Append audio frames to an open live transcription session."""
+        self.ensure_one()
+        self._validate_transcription_mode(live=True)
+        return self.provider_id.transcribe_live_append(
+            handle, audio, model=self, **kwargs
+        )
+
+    def transcribe_live_commit(self, handle, **kwargs):
+        """Finalize the current utterance and return normalized events."""
+        self.ensure_one()
+        self._validate_transcription_mode(live=True)
+        return self.provider_id.transcribe_live_commit(handle, model=self, **kwargs)
+
+    def transcribe_live_events(self, handle, **kwargs):
+        """Drain pending partial/final events without closing the session."""
+        self.ensure_one()
+        self._validate_transcription_mode(live=True)
+        return self.provider_id.transcribe_live_events(handle, model=self, **kwargs)
+
+    def transcribe_live_close(self, handle, **kwargs):
+        """Close a live transcription session and release provider resources."""
+        self.ensure_one()
+        return self.provider_id.transcribe_live_close(handle, model=self, **kwargs)
 
     def action_open_fetch_this_model_wizard(self):
         self.ensure_one()

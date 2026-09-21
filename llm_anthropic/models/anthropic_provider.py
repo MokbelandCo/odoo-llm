@@ -136,6 +136,39 @@ class LLMProvider(models.Model):
             _("Anthropic does not provide a native speech-to-text API."),
         )
 
+    def anthropic_transcription_modes(self, model):
+        return {"batch": False, "live": False}
+
+    def anthropic_transcribe_live_open(self, model=None, **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native live transcription API."),
+        )
+
+    def anthropic_transcribe_live_append(self, handle, audio, model=None, **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native live transcription API."),
+        )
+
+    def anthropic_transcribe_live_commit(self, handle, model=None, **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native live transcription API."),
+        )
+
+    def anthropic_transcribe_live_events(self, handle, model=None, **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native live transcription API."),
+        )
+
+    def anthropic_transcribe_live_close(self, handle, model=None, **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not provide a native live transcription API."),
+        )
+
     def _anthropic_process_response(self, params):
         """Process non-streaming response from Anthropic.
 

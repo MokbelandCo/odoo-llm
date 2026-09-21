@@ -5,6 +5,10 @@ from odoo.exceptions import UserError, ValidationError
 
 from .llm_transcription import (
     LLMTranscriptionError,
+    close_live_session,
+    create_live_session,
+    inspect_audio_container,
+    normalize_live_events,
     normalize_transcription_result,
     require_audio_bytes,
 )
@@ -209,6 +213,7 @@ class LLMProvider(models.Model):
                 _("Model %s is not a speech-to-text model.") % model.name,
             )
         audio_bytes = require_audio_bytes(audio)
+        inspect_audio_container(audio_bytes, content_type=content_type, filename=filename)
         try:
             result = self._dispatch(
                 "transcribe",
@@ -238,6 +243,143 @@ class LLMProvider(models.Model):
                 _("Speech-to-text failed for this provider."),
             ) from None
         return normalize_transcription_result(result)
+
+    def transcribe_live_open(self, model=None, **kwargs):
+        """Open a live transcription session for ``model``."""
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        if model.model_use != "transcription" or not model.supports_live_transcription:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Model %s does not support live transcription.") % model.name,
+            )
+        try:
+            result = self._dispatch("transcribe_live_open", model=model, **kwargs)
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not support live transcription."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription could not be started."),
+            ) from None
+        if isinstance(result, dict) and result.get("handle"):
+            return result
+        handle = create_live_session(self.env.cr.dbname, {"model_id": model.id})
+        return {"handle": handle}
+
+    def transcribe_live_append(self, handle, audio, model=None, **kwargs):
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        audio_bytes = require_audio_bytes(audio)
+        try:
+            return self._dispatch(
+                "transcribe_live_append",
+                handle,
+                audio_bytes,
+                model=model,
+                **kwargs,
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not support live transcription."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription could not append audio."),
+            ) from None
+
+    def transcribe_live_commit(self, handle, model=None, **kwargs):
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        try:
+            result = self._dispatch(
+                "transcribe_live_commit", handle, model=model, **kwargs
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not support live transcription."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription could not be committed."),
+            ) from None
+        events = result.get("events") if isinstance(result, dict) else result
+        return {"events": normalize_live_events(events), "handle": handle}
+
+    def transcribe_live_events(self, handle, model=None, **kwargs):
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        try:
+            result = self._dispatch(
+                "transcribe_live_events", handle, model=model, **kwargs
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not support live transcription."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription events could not be read."),
+            ) from None
+        events = result.get("events") if isinstance(result, dict) else result
+        return {"events": normalize_live_events(events), "handle": handle}
+
+    def transcribe_live_close(self, handle, model=None, **kwargs):
+        self.ensure_one()
+        model = self.get_model(model, "transcription") if model else None
+        try:
+            result = self._dispatch(
+                "transcribe_live_close", handle, model=model, **kwargs
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            close_live_session(self.env.cr.dbname, handle)
+            return {"handle": handle, "closed": True}
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription could not be closed."),
+            ) from None
+        close_live_session(self.env.cr.dbname, handle)
+        return result if isinstance(result, dict) else {"handle": handle, "closed": True}
+
+    def _transcription_modes_for_model(self, model):
+        """Return ``{batch, live}`` for ``model``. Live is never inferred from use."""
+        self.ensure_one()
+        method = getattr(self, "%s_transcription_modes" % self.service, None)
+        if method:
+            return method(model)
+        if model.model_use == "transcription":
+            return {"batch": True, "live": False}
+        return {"batch": False, "live": False}
 
     def list_models(self, model_id=None):
         """List available models from the provider"""
