@@ -395,7 +395,11 @@ class LLMProvider(models.Model):
     })
 
     def openai_transcription_modes(self, model):
-        """OpenAI batch vs live eligibility. Live is never inferred from STT use."""
+        """OpenAI batch vs live eligibility. Live is never inferred from STT use.
+
+        Generic realtime chat/audio models are not STT-capable unless they are
+        in ``OPENAI_LIVE_TRANSCRIBE_MODELS``.
+        """
         name = (model.name or "").strip()
         lowered = name.lower()
         batch = (
@@ -403,7 +407,14 @@ class LLMProvider(models.Model):
             or any(token in lowered for token in self.OPENAI_TRANSCRIPTION_PATTERNS)
         )
         live = lowered in {item.lower() for item in self.OPENAI_LIVE_TRANSCRIBE_MODELS}
-        return {"batch": batch, "live": live}
+        diarization = "diarize" in lowered
+        return {
+            "batch": batch,
+            "live": live,
+            "webrtc": live,
+            "websocket": live,
+            "diarization": diarization,
+        }
 
     def openai_transcribe(
         self,
@@ -485,8 +496,9 @@ class LLMProvider(models.Model):
     def openai_transcribe_live_open(self, model=None, **kwargs):
         """Open a Realtime-eligible live transcription session.
 
-        The browser never receives OpenAI credentials. This handle lives in the
-        Odoo worker; capture sources post PCM frames through ehr_scribe.
+        Browser and IoT clients should call ``transcribe_live_credentials`` and
+        stream audio directly. This worker-local handle remains for tests and
+        for capture sources that cannot hold a provider socket themselves.
         """
         model = self.get_model(model, "transcription")
         if (model.name or "").strip().lower() not in {
@@ -553,6 +565,105 @@ class LLMProvider(models.Model):
     def openai_transcribe_live_close(self, handle, model=None, **kwargs):
         close_live_session(self.env.cr.dbname, handle)
         return {"handle": handle, "closed": True}
+
+    def openai_transcribe_live_credentials(self, model=None, transport="webrtc", language=None, **kwargs):
+        """Issue an ephemeral OpenAI Realtime transcription token.
+
+        The long-lived API key stays on the provider record. The client receives
+        only ``client_secret.value`` and the realtime URL.
+        """
+        model = self.get_model(model, "transcription")
+        if (model.name or "").strip().lower() not in {
+            item.lower() for item in self.OPENAI_LIVE_TRANSCRIBE_MODELS
+        }:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Model %s is not accepted for OpenAI Realtime transcription.")
+                % model.name,
+            )
+        if transport not in ("webrtc", "websocket"):
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("OpenAI live transcription supports webrtc and websocket only."),
+            )
+        created = self._openai_create_transcription_session(
+            model, transport=transport, language=language,
+        )
+        secret = created.get("client_secret") or {}
+        token = secret.get("value")
+        if not token:
+            raise LLMTranscriptionError(
+                "authentication",
+                _("OpenAI did not return a short-lived live transcription token."),
+            )
+        api_base = (self.api_base or "https://api.openai.com/v1").rstrip("/")
+        if transport == "websocket":
+            ws_base = api_base.replace("https://", "wss://").replace("http://", "ws://")
+            url = "%s/realtime?intent=transcription" % ws_base
+        else:
+            url = "%s/realtime?intent=transcription" % api_base
+        return {
+            "token": token,
+            "expires_at": secret.get("expires_at"),
+            "url": url,
+            "transport": transport,
+            "session_id": created.get("id"),
+            "handle": created.get("id"),
+            "model": model.name,
+            "input_audio_format": created.get("input_audio_format") or "pcm16",
+        }
+
+    def _openai_create_transcription_session(self, model, transport="webrtc", language=None):
+        """POST /realtime/transcription_sessions. Isolated so tests can mock it."""
+        import requests
+
+        api_base = (self.api_base or "https://api.openai.com/v1").rstrip("/")
+        url = "%s/realtime/transcription_sessions" % api_base
+        transcription = {"model": model.name}
+        if language:
+            transcription["language"] = str(language).split("_", 1)[0]
+        body = {
+            "input_audio_format": "pcm16",
+            "input_audio_transcription": transcription,
+        }
+        try:
+            response = requests.post(
+                url,
+                json=body,
+                headers={
+                    "Authorization": "Bearer %s" % self.api_key,
+                    "Content-Type": "application/json",
+                    "OpenAI-Beta": "realtime=v1",
+                },
+                timeout=20,
+            )
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("OpenAI live transcription credentials could not be requested."),
+            ) from None
+        if response.status_code in (401, 403):
+            raise LLMTranscriptionError(
+                "authentication",
+                _("OpenAI rejected the live transcription credentials."),
+            )
+        if response.status_code == 429:
+            raise LLMTranscriptionError(
+                "throttling",
+                _("OpenAI is rate limiting live transcription sessions."),
+            )
+        if response.status_code >= 400:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("OpenAI live transcription session could not be created."),
+            )
+        try:
+            return response.json()
+        except ValueError:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("OpenAI live transcription session response was not JSON."),
+            ) from None
 
     def _openai_transcription_filename(self, filename, content_type):
         name = os.path.basename(filename or "") if filename else ""

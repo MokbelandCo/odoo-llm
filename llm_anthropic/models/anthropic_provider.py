@@ -137,7 +137,13 @@ class LLMProvider(models.Model):
         )
 
     def anthropic_transcription_modes(self, model):
-        return {"batch": False, "live": False}
+        return {
+            "batch": False,
+            "live": False,
+            "webrtc": False,
+            "websocket": False,
+            "diarization": False,
+        }
 
     def anthropic_transcribe_live_open(self, model=None, **kwargs):
         raise LLMTranscriptionError(
@@ -167,6 +173,12 @@ class LLMProvider(models.Model):
         raise LLMTranscriptionError(
             "unsupported_capability",
             _("Anthropic does not provide a native live transcription API."),
+        )
+
+    def anthropic_transcribe_live_credentials(self, model=None, transport="webrtc", **kwargs):
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Anthropic does not issue live transcription credentials."),
         )
 
     def _anthropic_process_response(self, params):

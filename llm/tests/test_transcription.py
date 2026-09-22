@@ -315,3 +315,36 @@ class TestTranscriptionContract(TransactionCase):
         self.assertTrue(closed["closed"])
         self.assertEqual(opened["model"], self.model)
 
+    def test_live_credentials_are_short_lived_and_reject_api_keys(self):
+        from odoo.addons.llm.models.llm_transcription import normalize_live_credentials
+
+        provider_model = type(self.env["llm.provider"])
+
+        def stt_test_transcribe_live_credentials(record, model=None, transport="webrtc", **kwargs):
+            return {
+                "token": "ek-test-ephemeral",
+                "expires_at": "2030-01-01T00:00:00",
+                "url": "https://example.test/realtime",
+                "transport": transport,
+                "session_id": "sess-1",
+                "handle": "sess-1",
+                "model": model.name,
+            }
+
+        if not hasattr(provider_model, "stt_test_transcribe_live_credentials"):
+            setattr(provider_model, "stt_test_transcribe_live_credentials", lambda *a, **k: None)
+        self.patch(provider_model, "stt_test_transcribe_live_credentials", stt_test_transcribe_live_credentials)
+        self.model.supports_live_transcription = True
+        self.model.supports_live_webrtc = True
+        creds = self.model.transcribe_live_credentials(transport="webrtc")
+        self.assertEqual(creds["token"], "ek-test-ephemeral")
+        self.assertEqual(creds["transport"], "webrtc")
+        self.assertNotIn("api_key", creds)
+        with self.assertRaises(LLMTranscriptionError) as error:
+            normalize_live_credentials({
+                "token": "ek",
+                "transport": "webrtc",
+                "api_key": "sk-live-secret",
+            })
+        self.assertEqual(error.exception.code, "authentication")
+

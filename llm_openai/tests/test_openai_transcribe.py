@@ -175,6 +175,15 @@ class TestOpenAITranscribe(TransactionCase):
         })
         self.assertTrue(live_model.supports_batch_transcription)
         self.assertTrue(live_model.supports_live_transcription)
+        self.assertTrue(live_model.supports_live_webrtc)
+        self.assertTrue(live_model.supports_live_websocket)
+        chat_realtime = self.env["llm.model"].create({
+            "name": "gpt-4o-realtime-preview",
+            "provider_id": self.provider.id,
+            "model_use": "chat",
+        })
+        self.assertFalse(chat_realtime.supports_live_transcription)
+        self.assertFalse(chat_realtime.supports_live_webrtc)
 
     def test_live_lifecycle_for_realtime_eligible_model(self):
         live_model = self.env["llm.model"].create({
@@ -193,6 +202,35 @@ class TestOpenAITranscribe(TransactionCase):
         self.assertTrue(closed["closed"])
         with self.assertRaises(LLMTranscriptionError):
             live_model.transcribe_live_append(opened["handle"], audio)
+
+    def test_live_credentials_never_return_the_api_key(self):
+        live_model = self.env["llm.model"].create({
+            "name": "gpt-4o-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+
+        def fake_session(record, model, transport="webrtc", language=None):
+            return {
+                "id": "sess_test",
+                "client_secret": {"value": "ek_ephemeral", "expires_at": 1893456000},
+                "input_audio_format": "pcm16",
+            }
+
+        self.patch(
+            type(self.env["llm.provider"]),
+            "_openai_create_transcription_session",
+            fake_session,
+        )
+        creds = live_model.transcribe_live_credentials(transport="webrtc")
+        self.assertEqual(creds["token"], "ek_ephemeral")
+        self.assertEqual(creds["transport"], "webrtc")
+        self.assertIn("realtime", creds["url"])
+        self.assertNotEqual(creds["token"], self.provider.api_key)
+        self.assertNotIn("sk-test-not-used", json.dumps(creds))
+        websocket = live_model.transcribe_live_credentials(transport="websocket")
+        self.assertEqual(websocket["transport"], "websocket")
+        self.assertTrue(websocket["url"].startswith("wss://") or "realtime" in websocket["url"])
 
     def test_whisper_cannot_enable_live_transcription(self):
         from odoo.exceptions import ValidationError

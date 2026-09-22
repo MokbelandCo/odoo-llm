@@ -18,7 +18,7 @@
     ],
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "17.0.1.3.0",  # Last updated: commit a4846318f (2026-09-21)
+    "version": "17.0.1.4.0",  # Last updated: commit a9c7e246 (2026-09-22)
     "depends": ["llm", "llm_tool"],
     "external_dependencies": {
         "python": ["anthropic"],

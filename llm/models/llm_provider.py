@@ -5,9 +5,11 @@ from odoo.exceptions import UserError, ValidationError
 
 from .llm_transcription import (
     LLMTranscriptionError,
+    LIVE_TRANSPORTS,
     close_live_session,
     create_live_session,
     inspect_audio_container,
+    normalize_live_credentials,
     normalize_live_events,
     normalize_transcription_result,
     require_audio_bytes,
@@ -371,15 +373,64 @@ class LLMProvider(models.Model):
         close_live_session(self.env.cr.dbname, handle)
         return result if isinstance(result, dict) else {"handle": handle, "closed": True}
 
+    def transcribe_live_credentials(self, model=None, transport="webrtc", **kwargs):
+        """Issue short-lived credentials so a client can talk to the provider."""
+        self.ensure_one()
+        model = self.get_model(model, "transcription")
+        if model.model_use != "transcription" or not model.supports_live_transcription:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Model %s does not support live transcription.") % model.name,
+            )
+        if transport not in LIVE_TRANSPORTS:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("Live transcription requires a webrtc or websocket transport."),
+            )
+        try:
+            result = self._dispatch(
+                "transcribe_live_credentials",
+                model=model,
+                transport=transport,
+                **kwargs,
+            )
+        except LLMTranscriptionError:
+            raise
+        except NotImplementedError:
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("This provider does not issue client live-transcription credentials."),
+            ) from None
+        except UserError:
+            raise
+        except Exception:
+            raise LLMTranscriptionError(
+                "provider_failure",
+                _("Live transcription credentials could not be issued."),
+            ) from None
+        return normalize_live_credentials(result)
+
     def _transcription_modes_for_model(self, model):
-        """Return ``{batch, live}`` for ``model``. Live is never inferred from use."""
+        """Return speech-mode flags for ``model``. Live is never inferred from use."""
         self.ensure_one()
         method = getattr(self, "%s_transcription_modes" % self.service, None)
         if method:
             return method(model)
         if model.model_use == "transcription":
-            return {"batch": True, "live": False}
-        return {"batch": False, "live": False}
+            return {
+                "batch": True,
+                "live": False,
+                "webrtc": False,
+                "websocket": False,
+                "diarization": False,
+            }
+        return {
+            "batch": False,
+            "live": False,
+            "webrtc": False,
+            "websocket": False,
+            "diarization": False,
+        }
 
     def list_models(self, model_id=None):
         """List available models from the provider"""

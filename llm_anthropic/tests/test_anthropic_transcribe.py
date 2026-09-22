@@ -87,3 +87,6 @@ class TestAnthropicTranscribe(TransactionCase):
         self.assertFalse(
             self.provider.anthropic_transcription_modes(self.forced_stt_model)["live"]
         )
+        with self.assertRaises(LLMTranscriptionError) as cred_error:
+            self.forced_stt_model.transcribe_live_credentials(transport="webrtc")
+        self.assertEqual(cred_error.exception.code, "unsupported_capability")
