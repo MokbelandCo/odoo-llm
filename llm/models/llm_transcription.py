@@ -8,6 +8,7 @@ this layer.
 """
 
 import logging
+import re
 import uuid
 
 from odoo import _
@@ -130,6 +131,7 @@ class LLMTranscriptionError(UserError):
         action=None,
         retry_after_ms=None,
         http_status=None,
+        details=None,
     ):
         if code not in TRANSCRIPTION_ERROR_CODES:
             code = "provider_failure"
@@ -145,6 +147,10 @@ class LLMTranscriptionError(UserError):
         self.http_status = (
             policy["http_status"] if http_status is None else int(http_status)
         )
+        # Structured, PHI-free telemetry about the provider exchange (HTTP
+        # status, provider error type/code/param, operation, model, transport).
+        # Never the raw body, credentials, SDP or audio.
+        self.details = sanitize_error_details(details)
         super().__init__(message)
 
     def to_dict(self, chunk_sequence=None):
@@ -156,7 +162,62 @@ class LLMTranscriptionError(UserError):
             "message": str(self),
             "retry_after_ms": self.retry_after_ms,
             "chunk_sequence": chunk_sequence,
+            "details": dict(self.details) if self.details else None,
         }
+
+
+#: Keys a provider adapter may attach to ``LLMTranscriptionError.details``.
+#: Anything else is dropped so a body, header or token cannot ride along.
+ERROR_DETAIL_KEYS = frozenset({
+    "operation",
+    "http_status",
+    "provider",
+    "provider_error_type",
+    "provider_error_code",
+    "provider_error_param",
+    "provider_message",
+    "model",
+    "transport",
+    "endpoint",
+    "retryable_class",
+    "request_id",
+})
+
+#: Key-shaped tokens, including the form providers echo back already masked
+#: (``sk-abcd****...wxyz``): the visible prefix and suffix of a key are still
+#: fragments of it, so the whole token goes.
+_SECRET_PATTERN = re.compile(r"\b(?:sk|ek|rk)[-_][A-Za-z0-9_\-*]{4,}")
+
+
+def sanitize_error_details(details):
+    """Whitelist and redact structured provider error telemetry."""
+    if not isinstance(details, dict):
+        return {}
+    clean = {}
+    for key, value in details.items():
+        if key not in ERROR_DETAIL_KEYS or value is None:
+            continue
+        if isinstance(value, (int, float, bool)):
+            clean[key] = value
+            continue
+        text = _SECRET_PATTERN.sub("[redacted]", str(value))
+        clean[key] = text[:200]
+    return clean
+
+
+def retryable_class_for_status(http_status):
+    """Coarse retry disposition of an HTTP status: ``permanent``/``transient``.
+
+    401/403 and 4xx request errors cannot be fixed by retrying the same call;
+    429 and 5xx can.
+    """
+    try:
+        status = int(http_status)
+    except (TypeError, ValueError):
+        return "transient"
+    if status == 429 or status >= 500:
+        return "transient"
+    return "permanent"
 
 
 def transcription_modes_for_use(model_use, supports_batch=False, supports_live=False):
