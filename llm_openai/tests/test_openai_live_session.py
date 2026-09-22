@@ -177,6 +177,23 @@ class TestOpenAILiveSession(TransactionCase):
         self.assertTrue(model.supports_live_transport("webrtc"))
         self.assertEqual(model.live_verification_details["code"], "authentication")
 
+    def test_a_key_the_provider_already_masked_is_still_redacted(self):
+        # OpenAI echoes the key back as ``sk-smok****...agao``. The prefix and
+        # suffix it keeps are fragments of the real key and must not be stored.
+        model = self._model("gpt-4o-transcribe")
+        self.responses.append(FakeResponse(
+            401, _error_body(
+                "invalid_api_key",
+                "Incorrect API key provided: sk-smok**************************************agao. "
+                "You can find your API key at https://platform.openai.com/account/api-keys.",
+            ),
+        ))
+        caught = self._expect_error(lambda: model.transcribe_live_credentials(transport="webrtc"))
+        dumped = json.dumps(caught.to_dict()) + json.dumps(model.live_verification_details)
+        self.assertNotIn("sk-smok", dumped)
+        self.assertNotIn("agao", dumped)
+        self.assertIn("Incorrect API key provided: [redacted]", caught.details["provider_message"])
+
     def test_throttling_is_retryable_and_carries_retry_after(self):
         model = self._model("gpt-4o-transcribe")
         self.responses.append(FakeResponse(

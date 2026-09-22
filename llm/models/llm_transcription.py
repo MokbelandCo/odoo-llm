@@ -183,7 +183,10 @@ ERROR_DETAIL_KEYS = frozenset({
     "request_id",
 })
 
-_SECRET_PATTERN = re.compile(r"\b(?:sk|ek|rk)[-_][A-Za-z0-9_\-]{8,}\b")
+#: Key-shaped tokens, including the form providers echo back already masked
+#: (``sk-abcd****...wxyz``): the visible prefix and suffix of a key are still
+#: fragments of it, so the whole token goes.
+_SECRET_PATTERN = re.compile(r"\b(?:sk|ek|rk)[-_][A-Za-z0-9_\-*]{4,}")
 
 
 def sanitize_error_details(details):
