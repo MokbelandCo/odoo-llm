@@ -508,8 +508,20 @@ def normalize_live_credentials(payload):
         "handle": str(payload.get("handle") or session_id),
         "ice_servers": payload.get("ice_servers") or [],
         "input_audio_format": str(payload.get("input_audio_format") or "pcm16"),
+        "sample_rate": _positive_int(payload.get("sample_rate")),
+        # Provider ``session.update`` body the client applies after connecting.
+        "session_update": payload["session_update"]
+        if isinstance(payload.get("session_update"), dict) else None,
         "model": str(payload.get("model") or "") or None,
     }
+
+
+def _positive_int(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def normalize_live_events(events):

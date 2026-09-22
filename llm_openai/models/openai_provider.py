@@ -384,10 +384,26 @@ class LLMProvider(models.Model):
         "gpt-4o-mini-transcribe",
         "gpt-4o-transcribe-diarize",
     })
+    #: Models the Realtime API accepts for ``session.type = "transcription"``.
+    #: whisper-1 is deliberately absent: it has no realtime delta stream here.
     OPENAI_LIVE_TRANSCRIBE_MODELS = frozenset({
         "gpt-4o-transcribe",
         "gpt-4o-mini-transcribe",
+        "gpt-4o-mini-transcribe-2025-12-15",
+        "gpt-4o-transcribe-diarize",
+        "gpt-realtime-whisper",
+        "gpt-live-transcribe",
+        "gpt-transcribe",
     })
+    #: Realtime-only models; ``/audio/transcriptions`` does not accept them.
+    OPENAI_REALTIME_ONLY_MODELS = frozenset({
+        "gpt-realtime-whisper",
+        "gpt-live-transcribe",
+    })
+    #: The Realtime API only accepts 24 kHz PCM16 on the WebSocket transport.
+    OPENAI_REALTIME_PCM_RATE = 24000
+    #: Default TTL for client secrets (seconds). OpenAI allows 10..7200.
+    OPENAI_REALTIME_SECRET_TTL = 600
     #: gpt-4o transcribe models reject verbose_json; whisper-1 still uses it
     #: for segment timestamps.
     OPENAI_VERBOSE_JSON_TRANSCRIBE_MODELS = frozenset({
@@ -405,7 +421,7 @@ class LLMProvider(models.Model):
         batch = (
             lowered in {item.lower() for item in self.OPENAI_BATCH_TRANSCRIBE_MODELS}
             or any(token in lowered for token in self.OPENAI_TRANSCRIPTION_PATTERNS)
-        )
+        ) and lowered not in {item.lower() for item in self.OPENAI_REALTIME_ONLY_MODELS}
         live = lowered in {item.lower() for item in self.OPENAI_LIVE_TRANSCRIBE_MODELS}
         diarization = "diarize" in lowered
         return {
@@ -589,42 +605,84 @@ class LLMProvider(models.Model):
         created = self._openai_create_transcription_session(
             model, transport=transport, language=language,
         )
+        # GA ``/realtime/client_secrets`` returns ``{"value", "expires_at",
+        # "session"}``; the retired beta endpoint nested it as ``client_secret``.
         secret = created.get("client_secret") or {}
-        token = secret.get("value")
+        token = created.get("value") or secret.get("value")
         if not token:
             raise LLMTranscriptionError(
                 "authentication",
                 _("OpenAI did not return a short-lived live transcription token."),
             )
+        session = created.get("session") or {}
         api_base = (self.api_base or "https://api.openai.com/v1").rstrip("/")
         if transport == "websocket":
             ws_base = api_base.replace("https://", "wss://").replace("http://", "ws://")
-            url = "%s/realtime?intent=transcription" % ws_base
+            url = "%s/realtime" % ws_base
         else:
-            url = "%s/realtime?intent=transcription" % api_base
+            # Browsers POST their SDP offer here with ``Authorization: Bearer ek_…``.
+            url = "%s/realtime/calls" % api_base
+        session_id = session.get("id") or created.get("id")
         return {
             "token": token,
-            "expires_at": secret.get("expires_at"),
+            "expires_at": created.get("expires_at") or secret.get("expires_at"),
             "url": url,
             "transport": transport,
-            "session_id": created.get("id"),
-            "handle": created.get("id"),
+            "session_id": session_id,
+            "handle": session_id,
             "model": model.name,
-            "input_audio_format": created.get("input_audio_format") or "pcm16",
+            "input_audio_format": "pcm16",
+            "sample_rate": self.OPENAI_REALTIME_PCM_RATE,
+            # Sent by the client as ``session.update`` once connected so the
+            # session is a transcription session even if the secret's attached
+            # configuration is not applied by the transport.
+            "session_update": self._openai_transcription_session_config(
+                model, language=language,
+            ),
+        }
+
+    def _openai_transcription_session_config(self, model, language=None):
+        """Realtime ``session`` body for ``type: transcription``."""
+        transcription = {"model": model.name}
+        if language:
+            code = str(language).split("_", 1)[0].split("-", 1)[0].lower()
+            if (model.name or "").lower() == "gpt-live-transcribe":
+                transcription["languages"] = [code]
+            else:
+                transcription["language"] = code
+        turn_detection = {
+            "type": "server_vad",
+            "threshold": 0.5,
+            "prefix_padding_ms": 300,
+            "silence_duration_ms": 500,
+        }
+        if (model.name or "").lower() == "gpt-realtime-whisper":
+            # VAD is not supported for this model; the client commits turns.
+            turn_detection = None
+        return {
+            "type": "transcription",
+            "audio": {
+                "input": {
+                    "format": {"type": "audio/pcm", "rate": self.OPENAI_REALTIME_PCM_RATE},
+                    "transcription": transcription,
+                    "turn_detection": turn_detection,
+                    "noise_reduction": {"type": "near_field"},
+                }
+            },
         }
 
     def _openai_create_transcription_session(self, model, transport="webrtc", language=None):
-        """POST /realtime/transcription_sessions. Isolated so tests can mock it."""
+        """POST /realtime/client_secrets. Isolated so tests can mock it."""
         import requests
 
         api_base = (self.api_base or "https://api.openai.com/v1").rstrip("/")
-        url = "%s/realtime/transcription_sessions" % api_base
-        transcription = {"model": model.name}
-        if language:
-            transcription["language"] = str(language).split("_", 1)[0]
+        url = "%s/realtime/client_secrets" % api_base
         body = {
-            "input_audio_format": "pcm16",
-            "input_audio_transcription": transcription,
+            "expires_after": {
+                "anchor": "created_at",
+                "seconds": self.OPENAI_REALTIME_SECRET_TTL,
+            },
+            "session": self._openai_transcription_session_config(model, language=language),
         }
         try:
             response = requests.post(
@@ -633,7 +691,6 @@ class LLMProvider(models.Model):
                 headers={
                     "Authorization": "Bearer %s" % self.api_key,
                     "Content-Type": "application/json",
-                    "OpenAI-Beta": "realtime=v1",
                 },
                 timeout=20,
             )
