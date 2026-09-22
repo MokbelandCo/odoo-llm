@@ -106,8 +106,12 @@ _FLAC_MAGIC = b"fLaC"
 _ID3_MAGIC = b"ID3"
 _FTYP_MAGIC = b"ftyp"
 
+#: Client-direct live transports. Audio never transits Odoo on these paths.
+LIVE_TRANSPORTS = ("webrtc", "websocket")
+
 #: Process-local live transcription sessions. Keyed by ``(dbname, handle)`` so
 #: two databases in the same worker cannot share a provider realtime socket.
+#: The browser/IoT live path uses short-lived credentials instead of this map.
 _LIVE_SESSIONS = {}
 
 
@@ -158,8 +162,21 @@ class LLMTranscriptionError(UserError):
 def transcription_modes_for_use(model_use, supports_batch=False, supports_live=False):
     """Return ``{batch, live}`` without inferring live from ``model_use`` alone."""
     if model_use != "transcription":
-        return {"batch": False, "live": False}
-    return {"batch": bool(supports_batch), "live": bool(supports_live)}
+        return {
+            "batch": False,
+            "live": False,
+            "webrtc": False,
+            "websocket": False,
+            "diarization": False,
+        }
+    live = bool(supports_live)
+    return {
+        "batch": bool(supports_batch),
+        "live": live,
+        "webrtc": live,
+        "websocket": live,
+        "diarization": False,
+    }
 
 
 def inspect_audio_container(audio, content_type=None, filename=None):
@@ -447,6 +464,64 @@ def normalize_transcription_result(result):
         "provider_request_id": provider_request_id,
         "model_version": model_version,
     }
+
+
+def normalize_live_credentials(payload):
+    """Keep only the public short-lived live-STT credential contract.
+
+    The payload must never include a long-lived provider API key. Callers send
+    ``token`` to the provider realtime endpoint and nothing else.
+    """
+    if not isinstance(payload, dict):
+        raise LLMTranscriptionError(
+            "provider_failure",
+            _("Live transcription credentials are not a normalized dictionary."),
+        )
+    for forbidden in ("api_key", "apiKey", "secret_key", "openai_api_key"):
+        if payload.get(forbidden):
+            raise LLMTranscriptionError(
+                "authentication",
+                _("Live transcription credentials must not include a long-lived secret."),
+            )
+    transport = payload.get("transport")
+    if transport not in LIVE_TRANSPORTS:
+        raise LLMTranscriptionError(
+            "unsupported_capability",
+            _("Live transcription requires a webrtc or websocket transport."),
+        )
+    token = payload.get("token") or (payload.get("client_secret") or {}).get("value")
+    if not token:
+        raise LLMTranscriptionError(
+            "authentication",
+            _("Live transcription credentials are missing a short-lived token."),
+        )
+    session_id = payload.get("session_id") or payload.get("handle") or ""
+    expires_at = payload.get("expires_at")
+    if expires_at is not None:
+        expires_at = str(expires_at)
+    return {
+        "token": str(token),
+        "expires_at": expires_at,
+        "url": str(payload.get("url") or ""),
+        "transport": transport,
+        "session_id": str(session_id),
+        "handle": str(payload.get("handle") or session_id),
+        "ice_servers": payload.get("ice_servers") or [],
+        "input_audio_format": str(payload.get("input_audio_format") or "pcm16"),
+        "sample_rate": _positive_int(payload.get("sample_rate")),
+        # Provider ``session.update`` body the client applies after connecting.
+        "session_update": payload["session_update"]
+        if isinstance(payload.get("session_update"), dict) else None,
+        "model": str(payload.get("model") or "") or None,
+    }
+
+
+def _positive_int(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def normalize_live_events(events):

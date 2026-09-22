@@ -47,6 +47,20 @@ class LLMModel(models.Model):
         readonly=False,
         help="Persistent realtime session with partial and final events.",
     )
+    supports_live_webrtc = fields.Boolean(
+        string="Live WebRTC Transport",
+        compute="_compute_transcription_modes",
+        store=True,
+        readonly=False,
+        help="Browser clients can stream live audio to this model over WebRTC.",
+    )
+    supports_live_websocket = fields.Boolean(
+        string="Live WebSocket Transport",
+        compute="_compute_transcription_modes",
+        store=True,
+        readonly=False,
+        help="IoT/local agents can stream live audio to this model over WebSocket.",
+    )
 
     @api.depends("model_use", "name", "provider_id", "provider_id.service")
     def _compute_transcription_modes(self):
@@ -54,13 +68,22 @@ class LLMModel(models.Model):
             modes = model.provider_id._transcription_modes_for_model(model) if model.provider_id else {
                 "batch": False,
                 "live": False,
+                "webrtc": False,
+                "websocket": False,
             }
             if model.model_use != "transcription":
                 model.supports_batch_transcription = False
                 model.supports_live_transcription = False
+                model.supports_live_webrtc = False
+                model.supports_live_websocket = False
             else:
+                live = bool(modes.get("live"))
                 model.supports_batch_transcription = bool(modes.get("batch"))
-                model.supports_live_transcription = bool(modes.get("live"))
+                model.supports_live_transcription = live
+                model.supports_live_webrtc = bool(modes["webrtc"]) if "webrtc" in modes else live
+                model.supports_live_websocket = (
+                    bool(modes["websocket"]) if "websocket" in modes else live
+                )
 
     @api.constrains(
         "supports_batch_transcription",
@@ -239,6 +262,43 @@ class LLMModel(models.Model):
         """Close a live transcription session and release provider resources."""
         self.ensure_one()
         return self.provider_id.transcribe_live_close(handle, model=self, **kwargs)
+
+    def transcribe_live_credentials(self, transport="webrtc", **kwargs):
+        """Issue short-lived client credentials for a direct provider live session.
+
+        The capture source connects to the provider. Odoo never receives the
+        live audio and never returns the long-lived provider API key.
+        """
+        self.ensure_one()
+        self._validate_transcription_mode(live=True)
+        if transport == "webrtc" and not self.supports_live_webrtc:
+            from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s does not support WebRTC live transcription." % self.name,
+            )
+        if transport == "websocket" and not self.supports_live_websocket:
+            from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s does not support WebSocket live transcription." % self.name,
+            )
+        return self.provider_id.transcribe_live_credentials(
+            model=self, transport=transport, **kwargs
+        )
+
+    def supports_live_transport(self, transport):
+        """True when this STT model can drive ``transport`` (webrtc/websocket)."""
+        self.ensure_one()
+        if not self.supports_live_transcription:
+            return False
+        if transport == "webrtc":
+            return bool(self.supports_live_webrtc)
+        if transport == "websocket":
+            return bool(self.supports_live_websocket)
+        return False
 
     def action_open_fetch_this_model_wizard(self):
         self.ensure_one()

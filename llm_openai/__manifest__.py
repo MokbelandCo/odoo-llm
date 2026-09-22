@@ -8,7 +8,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "17.0.1.7.0",  # Last updated: commit cd942bc7 (2026-09-21)
+    "version": "17.0.1.9.0",  # Last updated: commit 5b0cabe1 (2026-09-22)
     "depends": ["llm", "llm_tool", "llm_training"],
     "external_dependencies": {
         "python": ["openai"],

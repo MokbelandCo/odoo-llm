@@ -175,6 +175,15 @@ class TestOpenAITranscribe(TransactionCase):
         })
         self.assertTrue(live_model.supports_batch_transcription)
         self.assertTrue(live_model.supports_live_transcription)
+        self.assertTrue(live_model.supports_live_webrtc)
+        self.assertTrue(live_model.supports_live_websocket)
+        chat_realtime = self.env["llm.model"].create({
+            "name": "gpt-4o-realtime-preview",
+            "provider_id": self.provider.id,
+            "model_use": "chat",
+        })
+        self.assertFalse(chat_realtime.supports_live_transcription)
+        self.assertFalse(chat_realtime.supports_live_webrtc)
 
     def test_live_lifecycle_for_realtime_eligible_model(self):
         live_model = self.env["llm.model"].create({
@@ -193,6 +202,97 @@ class TestOpenAITranscribe(TransactionCase):
         self.assertTrue(closed["closed"])
         with self.assertRaises(LLMTranscriptionError):
             live_model.transcribe_live_append(opened["handle"], audio)
+
+    def test_live_credentials_never_return_the_api_key(self):
+        live_model = self.env["llm.model"].create({
+            "name": "gpt-4o-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+
+        def fake_session(record, model, transport="webrtc", language=None):
+            # GA ``POST /realtime/client_secrets`` response shape.
+            return {
+                "value": "ek_ephemeral",
+                "expires_at": 1893456000,
+                "session": {
+                    "id": "sess_test",
+                    "object": "realtime.transcription_session",
+                    "type": "transcription",
+                },
+            }
+
+        self.patch(
+            type(self.env["llm.provider"]),
+            "_openai_create_transcription_session",
+            fake_session,
+        )
+        creds = live_model.transcribe_live_credentials(transport="webrtc", language="en_US")
+        self.assertEqual(creds["token"], "ek_ephemeral")
+        self.assertEqual(creds["transport"], "webrtc")
+        self.assertEqual(creds["session_id"], "sess_test")
+        self.assertEqual(creds["expires_at"], "1893456000")
+        self.assertTrue(creds["url"].endswith("/realtime/calls"))
+        self.assertEqual(creds["sample_rate"], 24000)
+        self.assertEqual(creds["session_update"]["type"], "transcription")
+        self.assertEqual(
+            creds["session_update"]["audio"]["input"]["transcription"],
+            {"model": "gpt-4o-transcribe", "language": "en"},
+        )
+        self.assertNotEqual(creds["token"], self.provider.api_key)
+        self.assertNotIn("sk-test-not-used", json.dumps(creds))
+        websocket = live_model.transcribe_live_credentials(transport="websocket")
+        self.assertEqual(websocket["transport"], "websocket")
+        self.assertTrue(websocket["url"].startswith("wss://"))
+        self.assertTrue(websocket["url"].endswith("/realtime"))
+
+    def test_live_credentials_use_the_ga_client_secrets_endpoint(self):
+        live_model = self.env["llm.model"].create({
+            "name": "gpt-4o-transcribe",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        posted = {}
+
+        class FakeResponse:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"value": "ek_ga", "expires_at": 1, "session": {"id": "sess_ga"}}
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            posted.update({"url": url, "json": json, "headers": headers})
+            return FakeResponse()
+
+        import requests
+
+        self.patch(requests, "post", fake_post)
+        creds = live_model.transcribe_live_credentials(transport="webrtc", language="fr")
+        self.assertEqual(creds["token"], "ek_ga")
+        self.assertTrue(posted["url"].endswith("/realtime/client_secrets"))
+        self.assertNotIn("OpenAI-Beta", posted["headers"])
+        self.assertEqual(posted["json"]["expires_after"]["anchor"], "created_at")
+        session = posted["json"]["session"]
+        self.assertEqual(session["type"], "transcription")
+        audio_input = session["audio"]["input"]
+        self.assertEqual(audio_input["format"], {"type": "audio/pcm", "rate": 24000})
+        self.assertEqual(audio_input["transcription"]["model"], "gpt-4o-transcribe")
+        self.assertEqual(audio_input["transcription"]["language"], "fr")
+        self.assertEqual(audio_input["turn_detection"]["type"], "server_vad")
+
+    def test_whisper_is_batch_only_and_realtime_whisper_is_live(self):
+        realtime_whisper = self.env["llm.model"].create({
+            "name": "gpt-realtime-whisper",
+            "provider_id": self.provider.id,
+            "model_use": "transcription",
+        })
+        self.assertFalse(self.model.supports_live_transcription)
+        self.assertTrue(self.model.supports_batch_transcription)
+        self.assertTrue(realtime_whisper.supports_live_transcription)
+        self.assertFalse(realtime_whisper.supports_batch_transcription)
+        config = self.provider._openai_transcription_session_config(realtime_whisper)
+        self.assertIsNone(config["audio"]["input"]["turn_detection"])
 
     def test_whisper_cannot_enable_live_transcription(self):
         from odoo.exceptions import ValidationError

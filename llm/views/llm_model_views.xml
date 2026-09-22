@@ -43,6 +43,8 @@
                             <field name="model_use" />
                             <field name="supports_batch_transcription" invisible="model_use != 'transcription'" />
                             <field name="supports_live_transcription" invisible="model_use != 'transcription'" />
+                            <field name="supports_live_webrtc" invisible="model_use != 'transcription' or not supports_live_transcription" />
+                            <field name="supports_live_websocket" invisible="model_use != 'transcription' or not supports_live_transcription" />
                             <field name="default" />
                         </group>
                         <group>
@@ -72,6 +74,8 @@
                 <field name="model_use" />
                 <field name="supports_batch_transcription" optional="hide" />
                 <field name="supports_live_transcription" optional="hide" />
+                <field name="supports_live_webrtc" optional="hide" />
+                <field name="supports_live_websocket" optional="hide" />
                 <field name="default" />
                 <field name="active" invisible="1" />
             </tree>
