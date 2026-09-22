@@ -386,14 +386,28 @@ class LLMProvider(models.Model):
     })
     #: Models the Realtime API accepts for ``session.type = "transcription"``.
     #: whisper-1 is deliberately absent: it has no realtime delta stream here.
+    #: ``gpt-4o-transcribe-diarize`` is batch only: ``/realtime/client_secrets``
+    #: rejects it with ``invalid_value`` on ``session.audio.input.transcription.model``.
+    #: The static list is a *should*; :meth:`llm.model.action_verify_live_transcription`
+    #: records what the provider actually accepted.
     OPENAI_LIVE_TRANSCRIBE_MODELS = frozenset({
         "gpt-4o-transcribe",
         "gpt-4o-mini-transcribe",
         "gpt-4o-mini-transcribe-2025-12-15",
-        "gpt-4o-transcribe-diarize",
         "gpt-realtime-whisper",
         "gpt-live-transcribe",
         "gpt-transcribe",
+    })
+    #: Provider ``error.code`` / ``error.type`` values that mean "this model
+    #: cannot open a realtime transcription session", as opposed to a bad key
+    #: or a throttled account. Only these reject a model for live planning.
+    OPENAI_LIVE_UNSUPPORTED_ERROR_CODES = frozenset({
+        "model_not_found",
+        "invalid_value",
+        "unsupported_value",
+        "unknown_parameter",
+        "unsupported_parameter",
+        "invalid_type",
     })
     #: Realtime-only models; ``/audio/transcriptions`` does not accept them.
     OPENAI_REALTIME_ONLY_MODELS = frozenset({
@@ -596,11 +610,27 @@ class LLMProvider(models.Model):
                 "unsupported_capability",
                 _("Model %s is not accepted for OpenAI Realtime transcription.")
                 % model.name,
+                details={
+                    "operation": "live_credentials",
+                    "provider": "openai",
+                    "model": model.name,
+                    "transport": transport,
+                    "provider_error_code": "not_in_live_matrix",
+                    "retryable_class": "permanent",
+                },
             )
         if transport not in ("webrtc", "websocket"):
             raise LLMTranscriptionError(
                 "unsupported_capability",
                 _("OpenAI live transcription supports webrtc and websocket only."),
+                details={
+                    "operation": "live_credentials",
+                    "provider": "openai",
+                    "model": model.name,
+                    "transport": transport,
+                    "provider_error_code": "unsupported_transport",
+                    "retryable_class": "permanent",
+                },
             )
         created = self._openai_create_transcription_session(
             model, transport=transport, language=language,
@@ -611,10 +641,21 @@ class LLMProvider(models.Model):
         token = created.get("value") or secret.get("value")
         if not token:
             raise LLMTranscriptionError(
-                "authentication",
+                "provider_failure",
                 _("OpenAI did not return a short-lived live transcription token."),
+                details={
+                    "operation": "live_credentials",
+                    "provider": "openai",
+                    "model": model.name,
+                    "transport": transport,
+                    "provider_error_code": "missing_client_secret",
+                    "retryable_class": "transient",
+                },
             )
         session = created.get("session") or {}
+        self._openai_check_transcription_session_contract(
+            session, model, transport=transport,
+        )
         api_base = (self.api_base or "https://api.openai.com/v1").rstrip("/")
         if transport == "websocket":
             ws_base = api_base.replace("https://", "wss://").replace("http://", "ws://")
@@ -671,6 +712,55 @@ class LLMProvider(models.Model):
             },
         }
 
+    def _openai_check_transcription_session_contract(self, session, model, transport="webrtc"):
+        """The secret must be bound to a *transcription* session for ``model``.
+
+        A secret that opens a conversation session would connect, stream audio
+        and never emit ``conversation.item.input_audio_transcription.*``: the
+        client would look live while producing no transcript. Refusing here is
+        what keeps planning and execution from diverging.
+        """
+        if not session:
+            # Older/other-shaped answers omit the echo. Nothing to verify.
+            return True
+        session_type = session.get("type")
+        if session_type and session_type != "transcription":
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("OpenAI opened a %s session instead of a transcription session.")
+                % session_type,
+                details={
+                    "operation": "live_credentials",
+                    "provider": "openai",
+                    "model": model.name,
+                    "transport": transport,
+                    "provider_error_code": "session_type_mismatch",
+                    "provider_error_param": "session.type",
+                    "provider_message": str(session_type),
+                    "retryable_class": "permanent",
+                },
+            )
+        configured = (
+            ((session.get("audio") or {}).get("input") or {}).get("transcription") or {}
+        ).get("model")
+        if configured and configured.lower() != (model.name or "").lower():
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                _("OpenAI bound the live session to %s rather than %s.")
+                % (configured, model.name),
+                details={
+                    "operation": "live_credentials",
+                    "provider": "openai",
+                    "model": model.name,
+                    "transport": transport,
+                    "provider_error_code": "model_mismatch",
+                    "provider_error_param": "session.audio.input.transcription.model",
+                    "provider_message": str(configured),
+                    "retryable_class": "permanent",
+                },
+            )
+        return True
+
     def _openai_create_transcription_session(self, model, transport="webrtc", language=None):
         """POST /realtime/client_secrets. Isolated so tests can mock it."""
         import requests
@@ -684,6 +774,13 @@ class LLMProvider(models.Model):
             },
             "session": self._openai_transcription_session_config(model, language=language),
         }
+        details = {
+            "operation": "live_credentials",
+            "provider": "openai",
+            "model": model.name,
+            "transport": transport,
+            "endpoint": "/realtime/client_secrets",
+        }
         try:
             response = requests.post(
                 url,
@@ -694,33 +791,114 @@ class LLMProvider(models.Model):
                 },
                 timeout=20,
             )
-        except Exception:
+        except Exception as error:
             raise LLMTranscriptionError(
                 "provider_failure",
                 _("OpenAI live transcription credentials could not be requested."),
+                details=dict(
+                    details,
+                    provider_error_type=type(error).__name__,
+                    retryable_class="transient",
+                ),
             ) from None
-        if response.status_code in (401, 403):
-            raise LLMTranscriptionError(
-                "authentication",
-                _("OpenAI rejected the live transcription credentials."),
-            )
-        if response.status_code == 429:
-            raise LLMTranscriptionError(
-                "throttling",
-                _("OpenAI is rate limiting live transcription sessions."),
-            )
         if response.status_code >= 400:
-            raise LLMTranscriptionError(
-                "provider_failure",
-                _("OpenAI live transcription session could not be created."),
-            )
+            raise self._openai_live_session_error(response, details)
         try:
             return response.json()
         except ValueError:
             raise LLMTranscriptionError(
                 "provider_failure",
                 _("OpenAI live transcription session response was not JSON."),
+                details=dict(
+                    details,
+                    http_status=response.status_code,
+                    provider_error_code="invalid_json",
+                    retryable_class="transient",
+                ),
             ) from None
+
+    def _openai_live_session_error(self, response, details):
+        """Map a ``/realtime/client_secrets`` failure onto the STT error contract.
+
+        The provider body is parsed for its structured ``error`` object (type,
+        code, param, message) and only those fields travel on; the raw body,
+        headers and key never do. The mapping is what decides whether a model is
+        *rejected* (permanent capability refusal) or the call simply failed.
+        """
+        status = response.status_code
+        error = {}
+        try:
+            body = response.json()
+            if isinstance(body, dict) and isinstance(body.get("error"), dict):
+                error = body["error"]
+        except ValueError:
+            error = {}
+        request_id = None
+        headers = getattr(response, "headers", None) or {}
+        try:
+            request_id = headers.get("x-request-id") or headers.get("X-Request-Id")
+        except AttributeError:
+            request_id = None
+        details = dict(
+            details,
+            http_status=status,
+            provider_error_type=error.get("type"),
+            provider_error_code=error.get("code"),
+            provider_error_param=error.get("param"),
+            provider_message=error.get("message"),
+            request_id=request_id,
+        )
+        if status in (401, 403):
+            return LLMTranscriptionError(
+                "authentication",
+                _("OpenAI rejected the live transcription credentials."),
+                details=dict(details, retryable_class="permanent"),
+            )
+        if status == 429:
+            retry_after = None
+            try:
+                retry_after = int(float(headers.get("Retry-After") or 0)) * 1000 or None
+            except (TypeError, ValueError, AttributeError):
+                retry_after = None
+            return LLMTranscriptionError(
+                "throttling",
+                _("OpenAI is rate limiting live transcription sessions."),
+                retry_after_ms=retry_after,
+                details=dict(details, retryable_class="transient"),
+            )
+        if status >= 500:
+            return LLMTranscriptionError(
+                "provider_failure",
+                _("OpenAI live transcription session could not be created."),
+                details=dict(details, retryable_class="transient"),
+            )
+        code = str(error.get("code") or "").lower()
+        param = str(error.get("param") or "").lower()
+        message = str(error.get("message") or "").lower()
+        model_refused = (
+            code in self.OPENAI_LIVE_UNSUPPORTED_ERROR_CODES
+            and ("model" in param or "model" in message or not param)
+        ) or ("model" in param and "transcription" in param)
+        if status == 400 and (model_refused or "not supported" in message):
+            return LLMTranscriptionError(
+                "unsupported_capability",
+                _("OpenAI does not accept this model for realtime transcription."),
+                details=dict(details, retryable_class="permanent"),
+            )
+        if status == 400 and "language" in param:
+            return LLMTranscriptionError(
+                "unsupported_capability",
+                _("OpenAI does not accept the requested live transcription language."),
+                details=dict(details, retryable_class="permanent"),
+            )
+        # Other 4xx: our request shape is wrong or the account is misconfigured.
+        # Permanent for this exact call, but nothing was learnt about the model.
+        return LLMTranscriptionError(
+            "provider_failure",
+            _("OpenAI live transcription session could not be created."),
+            retryable=False,
+            details=dict(details, retryable_class="permanent"),
+        )
 
     def _openai_transcription_filename(self, filename, content_type):
         name = os.path.basename(filename or "") if filename else ""

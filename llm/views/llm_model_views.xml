@@ -15,6 +15,14 @@
             invisible="not id"
             help="Fetch the latest information for this specific model from the provider."
           />
+                    <button
+            name="action_verify_live_transcription"
+            string="Verify Live Transcription"
+            type="object"
+            invisible="not id or model_use != 'transcription' or not supports_live_transcription"
+            help="Open a real short-lived realtime transcription session with the provider for every transport this model advertises, and record whether the provider accepted it. Nothing is streamed."
+          />
+                    <field name="live_verification_state" widget="statusbar" invisible="model_use != 'transcription' or not supports_live_transcription" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -48,6 +56,9 @@
                             <field name="default" />
                         </group>
                         <group>
+                            <field name="live_verification_at" invisible="model_use != 'transcription' or not supports_live_transcription" />
+                            <field name="live_verification_transports" invisible="model_use != 'transcription' or not supports_live_transcription" />
+                            <field name="live_verification_details" widget="json_editor" invisible="model_use != 'transcription' or not supports_live_transcription" />
                             <field name="details" widget="json_editor" />
                             <field name="model_info" widget="json_editor" />
                             <field name="parameters" widget="text" />
@@ -76,6 +87,7 @@
                 <field name="supports_live_transcription" optional="hide" />
                 <field name="supports_live_webrtc" optional="hide" />
                 <field name="supports_live_websocket" optional="hide" />
+                <field name="live_verification_state" optional="hide" />
                 <field name="default" />
                 <field name="active" invisible="1" />
             </tree>

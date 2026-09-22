@@ -61,6 +61,35 @@ class LLMModel(models.Model):
         readonly=False,
         help="IoT/local agents can stream live audio to this model over WebSocket.",
     )
+    # The static provider matrix says what a model *should* accept. Whether the
+    # provider actually opens a realtime transcription session for it is only
+    # known once one was requested. A rejected model is never offered for live
+    # planning again until an administrator re-verifies it.
+    live_verification_state = fields.Selection(
+        [
+            ("unverified", "Not Verified"),
+            ("verified", "Verified With Provider"),
+            ("rejected", "Rejected By Provider"),
+        ],
+        string="Live Verification",
+        default="unverified",
+        readonly=True,
+        copy=False,
+        help="Result of the last real live-transcription session request for this model.",
+    )
+    live_verification_at = fields.Datetime(string="Live Verified At", readonly=True, copy=False)
+    live_verification_transports = fields.Char(
+        string="Verified Live Transports",
+        readonly=True,
+        copy=False,
+        help="Comma separated transports the provider accepted (webrtc, websocket).",
+    )
+    live_verification_details = fields.Json(
+        string="Live Verification Details",
+        readonly=True,
+        copy=False,
+        help="Structured, PHI-free telemetry of the last verification (status, provider error code/type/param).",
+    )
 
     @api.depends("model_use", "name", "provider_id", "provider_id.service")
     def _compute_transcription_modes(self):
@@ -270,35 +299,216 @@ class LLMModel(models.Model):
         live audio and never returns the long-lived provider API key.
         """
         self.ensure_one()
-        self._validate_transcription_mode(live=True)
-        if transport == "webrtc" and not self.supports_live_webrtc:
-            from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+        from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
 
+        self._validate_transcription_mode(live=True)
+        if self.live_verification_state == "rejected":
+            raise LLMTranscriptionError(
+                "unsupported_capability",
+                "Model %s was rejected by its provider for live transcription." % self.name,
+                details={
+                    "operation": "live_credentials",
+                    "model": self.name,
+                    "transport": transport,
+                    "provider_error_code": "model_rejected",
+                    "retryable_class": "permanent",
+                },
+            )
+        if transport == "webrtc" and not self.supports_live_webrtc:
             raise LLMTranscriptionError(
                 "unsupported_capability",
                 "Model %s does not support WebRTC live transcription." % self.name,
+                details={
+                    "operation": "live_credentials",
+                    "model": self.name,
+                    "transport": transport,
+                    "provider_error_code": "transport_not_supported",
+                    "retryable_class": "permanent",
+                },
             )
         if transport == "websocket" and not self.supports_live_websocket:
-            from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
-
             raise LLMTranscriptionError(
                 "unsupported_capability",
                 "Model %s does not support WebSocket live transcription." % self.name,
+                details={
+                    "operation": "live_credentials",
+                    "model": self.name,
+                    "transport": transport,
+                    "provider_error_code": "transport_not_supported",
+                    "retryable_class": "permanent",
+                },
             )
-        return self.provider_id.transcribe_live_credentials(
-            model=self, transport=transport, **kwargs
-        )
+        try:
+            result = self.provider_id.transcribe_live_credentials(
+                model=self, transport=transport, **kwargs
+            )
+        except LLMTranscriptionError as error:
+            # Every real session request is a verification of the model: a
+            # capability refusal takes it out of live planning right away.
+            self.live_verification_record_failure(error, transport=transport)
+            raise
+        self.live_verification_record_success(transport)
+        return result
 
     def supports_live_transport(self, transport):
-        """True when this STT model can drive ``transport`` (webrtc/websocket)."""
+        """True when this STT model can drive ``transport`` (webrtc/websocket).
+
+        A model the provider rejected for realtime transcription is not offered
+        for any transport, whatever the static capability matrix says.
+        """
         self.ensure_one()
         if not self.supports_live_transcription:
+            return False
+        if self.live_verification_state == "rejected":
             return False
         if transport == "webrtc":
             return bool(self.supports_live_webrtc)
         if transport == "websocket":
             return bool(self.supports_live_websocket)
         return False
+
+    def write(self, vals):
+        result = super().write(vals)
+        if {"name", "provider_id", "model_use"} & set(vals):
+            # A different model or provider is a different contract: what was
+            # verified no longer says anything about it.
+            super().write({
+                "live_verification_state": "unverified",
+                "live_verification_at": False,
+                "live_verification_transports": False,
+                "live_verification_details": False,
+            })
+        return result
+
+    # ------------------------------------------------------------------
+    # Live verification against the real provider
+    # ------------------------------------------------------------------
+    def _live_verification_transports(self):
+        self.ensure_one()
+        transports = []
+        if self.supports_live_webrtc:
+            transports.append("webrtc")
+        if self.supports_live_websocket:
+            transports.append("websocket")
+        return transports
+
+    def live_verification_record_success(self, transport):
+        """A real provider session was opened for ``transport``."""
+        self.ensure_one()
+        verified = [
+            item for item in (self.live_verification_transports or "").split(",") if item
+        ]
+        if transport and transport not in verified:
+            verified.append(transport)
+        self.sudo().write({
+            "live_verification_state": "verified",
+            "live_verification_at": fields.Datetime.now(),
+            "live_verification_transports": ",".join(verified),
+            "live_verification_details": {
+                "operation": "live_credentials",
+                "outcome": "accepted",
+                "transport": transport,
+            },
+        })
+        return True
+
+    def live_verification_record_failure(self, error, transport=None):
+        """Record a provider refusal. Only capability refusals reject the model.
+
+        Authentication or throttling says nothing about the model, so the state
+        stays as it was and only the telemetry is kept.
+        """
+        self.ensure_one()
+        from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
+        details = {"operation": "live_credentials", "transport": transport}
+        code = None
+        if isinstance(error, LLMTranscriptionError):
+            code = error.code
+            details.update(error.details or {})
+            details["code"] = code
+            details["retryable"] = error.retryable
+        else:
+            details["code"] = "provider_failure"
+        values = {"live_verification_details": details}
+        if code == "unsupported_capability":
+            values.update({
+                "live_verification_state": "rejected",
+                "live_verification_at": fields.Datetime.now(),
+                "live_verification_transports": False,
+            })
+        self.sudo().write(values)
+        return values.get("live_verification_state") == "rejected"
+
+    def action_verify_live_transcription(self):
+        """Open a real ephemeral provider session per transport and record the outcome.
+
+        Nothing is streamed: creating the short-lived session credential is the
+        provider's contract check. The result drives ``supports_live_transport``
+        so a model the provider refuses cannot be planned for live capture.
+        """
+        from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+
+        results = []
+        for model in self:
+            if model.model_use != "transcription" or not model.supports_live_transcription:
+                results.append((model, "skipped", None))
+                continue
+            transports = model._live_verification_transports()
+            if not transports:
+                results.append((model, "skipped", None))
+                continue
+            outcome = "verified"
+            last_error = None
+            # Start from a clean slate so a model that was rejected earlier can
+            # be re-verified after the provider (or its matrix) changed.
+            model.sudo().write({
+                "live_verification_state": "unverified",
+                "live_verification_transports": False,
+            })
+            for transport in transports:
+                try:
+                    # The model method records the outcome itself; the savepoint
+                    # only protects the transaction from an unexpected SQL error,
+                    # so the outcome is recorded again after a rollback.
+                    with self.env.cr.savepoint():
+                        model.transcribe_live_credentials(transport=transport)
+                except LLMTranscriptionError as error:
+                    last_error = error
+                    rejected = model.live_verification_record_failure(error, transport=transport)
+                    outcome = "rejected" if rejected else "error"
+                    break
+                except Exception as error:  # noqa: BLE001 - verification must report, not crash
+                    last_error = error
+                    model.live_verification_record_failure(error, transport=transport)
+                    outcome = "error"
+                    break
+                model.live_verification_record_success(transport)
+            results.append((model, outcome, last_error))
+        verified = [model.name for model, outcome, _error in results if outcome == "verified"]
+        rejected = [model.name for model, outcome, _error in results if outcome == "rejected"]
+        errored = [
+            "%s (%s)" % (model.name, getattr(error, "code", None) or "provider_failure")
+            for model, outcome, error in results if outcome == "error"
+        ]
+        parts = []
+        if verified:
+            parts.append(_("Verified: %s") % ", ".join(verified))
+        if rejected:
+            parts.append(_("Rejected by the provider: %s") % ", ".join(rejected))
+        if errored:
+            parts.append(_("Could not verify: %s") % ", ".join(errored))
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Live Transcription Verification"),
+                "message": "\n".join(parts) or _("No live-capable transcription model selected."),
+                "type": "success" if verified and not rejected and not errored else "warning",
+                "sticky": bool(rejected or errored),
+                "next": {"type": "ir.actions.client", "tag": "soft_reload"},
+            },
+        }
 
     def action_open_fetch_this_model_wizard(self):
         self.ensure_one()
