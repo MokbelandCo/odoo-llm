@@ -1,7 +1,62 @@
+import collections.abc
+import json
+import logging
 from datetime import datetime
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
+
+_AI_LOG_LIMIT = 100000
+_AI_SECRET_KEYS = frozenset({
+    "api_key",
+    "token",
+    "authorization",
+    "client_secret",
+    "access_token",
+    "refresh_token",
+    "secret",
+})
+
+
+def _ai_jsonable(value, depth=0):
+    """A log-safe copy. Secrets and audio bytes are not written out."""
+    if depth > 8:
+        return str(value)
+    if isinstance(value, (bytes, bytearray)):
+        return {"bytes": len(value)}
+    if isinstance(value, dict):
+        safe = {}
+        for key, item in value.items():
+            if str(key).lower() in _AI_SECRET_KEYS:
+                safe[key] = "***"
+            else:
+                safe[key] = _ai_jsonable(item, depth + 1)
+        return safe
+    if isinstance(value, (list, tuple)):
+        return [_ai_jsonable(item, depth + 1) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if hasattr(value, "_name") and hasattr(value, "ids"):
+        return {"model": value._name, "ids": list(value.ids)}
+    return str(value)
+
+
+def _ai_dump(value):
+    try:
+        text = json.dumps(_ai_jsonable(value), ensure_ascii=False, indent=2, default=str)
+    except Exception:
+        text = str(value)
+    if len(text) > _AI_LOG_LIMIT:
+        return text[:_AI_LOG_LIMIT] + "\n...[truncated]"
+    return text
+
+
+def _is_ai_stream(value):
+    return isinstance(value, collections.abc.Iterator) and not isinstance(
+        value, (str, bytes, dict, list, tuple)
+    )
 
 from .llm_transcription import (
     LLMTranscriptionError,
@@ -71,6 +126,66 @@ class LLMProvider(models.Model):
 
         return getattr(record, service_method)(*args, **kwargs)
 
+    def _log_ai(self, direction, operation, model, payload, stream=False):
+        """Write one AI request or response. Failures here never affect the call."""
+        try:
+            model_name = model.name if model else "(default)"
+            _logger.info(
+                "AI model %s provider=%s model=%s operation=%s%s\n%s",
+                direction,
+                self.name,
+                model_name,
+                operation,
+                " stream=1" if stream else "",
+                _ai_dump(payload),
+            )
+        except Exception:
+            _logger.warning("AI model %s log failed for %s", direction, operation)
+
+    def _log_mail_messages(self, messages):
+        if not messages:
+            return []
+        rows = []
+        for message in messages:
+            rows.append({
+                "id": message.id,
+                "role": getattr(message, "llm_role", None),
+                "body": message.body or "",
+            })
+        return rows
+
+    def _log_tools(self, tools):
+        if not tools:
+            return []
+        return [{"id": tool.id, "name": tool.name} for tool in tools]
+
+    def _finish_ai(self, operation, model, result):
+        if _is_ai_stream(result):
+            return self._log_ai_stream(operation, model, result)
+        self._log_ai("response", operation, model, result)
+        return result
+
+    def _log_ai_stream(self, operation, model, chunks):
+        collected = []
+        try:
+            for chunk in chunks:
+                collected.append(chunk)
+                yield chunk
+        finally:
+            self._log_ai("response", operation, model, collected, stream=True)
+
+    def _call_ai(self, operation, model, request, call):
+        self._log_ai("request", operation, model, request)
+        try:
+            result = call()
+        except Exception as error:
+            self._log_ai("response", operation, model, {
+                "error": type(error).__name__,
+                "message": str(error),
+            })
+            raise
+        return self._finish_ai(operation, model, result)
+
     @api.model
     def _selection_service(self):
         """Get all available services from provider implementations"""
@@ -115,14 +230,24 @@ class LLMProvider(models.Model):
             prepend_messages,
         )
 
-        return self._dispatch(
+        return self._call_ai(
             "chat",
-            messages,
-            model=model,
-            stream=stream,
-            tools=tools,
-            prepend_messages=prepend_messages,
-            **kwargs,
+            model,
+            {
+                "stream": bool(stream),
+                "tools": self._log_tools(tools),
+                "prepend_messages": prepend_messages,
+                "messages": self._log_mail_messages(messages),
+            },
+            lambda: self._dispatch(
+                "chat",
+                messages,
+                model=model,
+                stream=stream,
+                tools=tools,
+                prepend_messages=prepend_messages,
+                **kwargs,
+            ),
         )
 
     def _prepare_prepend_messages(self, prepend_messages, tools):
@@ -164,7 +289,12 @@ class LLMProvider(models.Model):
 
     def embedding(self, texts, model=None):
         """Generate embeddings using this provider"""
-        return self._dispatch("embedding", texts, model=model)
+        return self._call_ai(
+            "embedding",
+            model,
+            {"texts": texts},
+            lambda: self._dispatch("embedding", texts, model=model),
+        )
 
     def generate(self, input_data, model=None, stream=False, **kwargs):
         """Generate content using this provider
@@ -180,12 +310,17 @@ class LLMProvider(models.Model):
                 - output_dict: Dictionary containing provider-specific output data
                 - urls_list: List of dictionaries with URL metadata
         """
-        return self._dispatch(
+        return self._call_ai(
             "generate",
-            input_data,
-            model=model,
-            stream=stream,
-            **kwargs,
+            model,
+            {"stream": bool(stream), "input": input_data},
+            lambda: self._dispatch(
+                "generate",
+                input_data,
+                model=model,
+                stream=stream,
+                **kwargs,
+            ),
         )
 
     def transcribe(
@@ -216,20 +351,37 @@ class LLMProvider(models.Model):
             )
         audio_bytes = require_audio_bytes(audio)
         inspect_audio_container(audio_bytes, content_type=content_type, filename=filename)
+        self._log_ai("request", "transcribe", model, {
+            "filename": filename,
+            "content_type": content_type,
+            "language": language,
+            "prompt": prompt,
+            "audio_bytes": len(audio_bytes),
+            "timestamps": timestamps,
+            "diarization": diarization,
+            "stream": bool(stream),
+        })
         try:
-            result = self._dispatch(
-                "transcribe",
-                audio_bytes,
-                model=model,
-                filename=filename,
-                content_type=content_type,
-                language=language,
-                prompt=prompt,
-                stream=stream,
-                timestamps=timestamps,
-                diarization=diarization,
-                **kwargs,
-            )
+            try:
+                result = self._dispatch(
+                    "transcribe",
+                    audio_bytes,
+                    model=model,
+                    filename=filename,
+                    content_type=content_type,
+                    language=language,
+                    prompt=prompt,
+                    stream=stream,
+                    timestamps=timestamps,
+                    diarization=diarization,
+                    **kwargs,
+                )
+            except Exception as error:
+                self._log_ai("response", "transcribe", model, {
+                    "error": type(error).__name__,
+                    "message": str(error),
+                })
+                raise
         except LLMTranscriptionError:
             raise
         except NotImplementedError:
@@ -244,7 +396,9 @@ class LLMProvider(models.Model):
                 "provider_failure",
                 _("Speech-to-text failed for this provider."),
             ) from None
-        return normalize_transcription_result(result)
+        normalized = normalize_transcription_result(result)
+        self._log_ai("response", "transcribe", model, normalized)
+        return normalized
 
     def transcribe_live_open(self, model=None, **kwargs):
         """Open a live transcription session for ``model``."""
