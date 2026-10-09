@@ -11,7 +11,11 @@ letta-client
 llama_index
 markdown2
 markdownify
-mcp
+# mcp 1.19.0-1.21.0 imports pydantic._internal._typing_extra.eval_type_backport
+# while loading. pydantic 2.14.0 removed that private helper, so those releases
+# crash Odoo at registry load. 1.30.0 is the latest 1.x without that import and
+# still accepts pydantic 2.14. Stay below 2.x to avoid the mcp 2 dependency break.
+mcp>=1.30.0,<2
 mistralai
 nltk
 numpy
