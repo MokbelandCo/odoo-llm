@@ -15,6 +15,7 @@ markdownify
 # while loading. pydantic 2.14.0 removed that private helper, so those releases
 # crash Odoo at registry load. 1.30.0 is the latest 1.x without that import and
 # still accepts pydantic 2.14. Stay below 2.x to avoid the mcp 2 dependency break.
+# This floor also requires PyJWT>=2.10.1 (see mokbelhealth/requirements.txt).
 mcp>=1.30.0,<2
 mistralai
 nltk
