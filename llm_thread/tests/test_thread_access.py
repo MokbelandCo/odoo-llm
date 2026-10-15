@@ -3,6 +3,18 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
+class TestPortalMessaging(TransactionCase):
+    def test_portal_user_init_messaging_skips_llm_threads(self):
+        portal = new_test_user(
+            self.env,
+            login="llm_thread_portal",
+            groups="base.group_portal",
+        )
+        values = portal._init_messaging()
+        self.assertEqual(values["llm_threads"], [])
+
+
+@tagged("post_install", "-at_install")
 class TestThreadAccess(TransactionCase):
     """Standard users may only access their own llm.thread records."""
 

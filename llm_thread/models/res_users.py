@@ -7,6 +7,9 @@ class ResUsers(models.Model):
     def _init_messaging(self):
         """Include LLM threads in Odoo 17 init_messaging payload."""
         values = super()._init_messaging()
+        if not self.has_group("base.group_user"):
+            values["llm_threads"] = []
+            return values
         llm_threads = self.env["llm.thread"].search(
             [("user_id", "=", self.id), ("active", "=", True)],
             order="write_date DESC",

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assets_b2b_portal_remove_llm_assistant" model="ir.asset">
+        <field name="name">B2B portal: remove LLM Assistant</field>
+        <field name="bundle">company_service.assets_b2b_portal</field>
+        <field name="directive">remove</field>
+        <field name="path">llm_assistant/static/src/**/*</field>
+        <field name="sequence">100</field>
+    </record>
+</odoo>

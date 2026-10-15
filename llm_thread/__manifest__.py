@@ -32,7 +32,7 @@ Use cases include customer support automation, data analysis, training assistanc
 Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
-    "version": "17.0.1.6.0",
+    "version": "17.0.1.6.1",
     "depends": ["base", "mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
@@ -40,6 +40,7 @@ Contact: support@apexive.com
     "data": [
         "security/llm_thread_security.xml",
         "security/ir.model.access.csv",
+        "data/b2b_portal_assets.xml",
         "views/llm_thread_views.xml",
         "views/menu.xml",
     ],

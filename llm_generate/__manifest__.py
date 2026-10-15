@@ -1,6 +1,6 @@
 {
     "name": "LLM Content Generation",
-    "version": "17.0.2.0.0",
+    "version": "17.0.2.0.1",
     "category": "Productivity/Discuss",
     "summary": "Content generation capabilities for LLM models",
     "description": """
@@ -22,6 +22,7 @@
         "web_json_editor",
     ],
     "data": [
+        "data/b2b_portal_assets.xml",
         "data/llm_tool_data.xml",
         "views/llm_model_views.xml",
     ],
