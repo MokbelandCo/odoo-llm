@@ -262,6 +262,7 @@ class LLMStoreChroma(models.Model):
             return []
 
         try:
+            offset = max(0, int(kwargs.get("offset", 0)))
             # Convert filter to Chroma format if needed
             chroma_filter = (
                 self._convert_odoo_filter_to_chroma(filter) if filter else None
@@ -270,7 +271,7 @@ class LLMStoreChroma(models.Model):
             # Query collection
             results = collection.query(
                 query_embeddings=[query_vector],
-                n_results=limit,
+                n_results=offset + limit,
                 where=chroma_filter,
                 include=["metadatas", "distances"],
             )
@@ -282,7 +283,7 @@ class LLMStoreChroma(models.Model):
                 return []
 
             # Process results
-            for i, id_val in enumerate(results["ids"][0]):
+            for i, id_val in enumerate(results["ids"][0][offset:], start=offset):
                 distance = (
                     float(results["distances"][0][i])
                     if "distances" in results and results["distances"][0]

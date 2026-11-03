@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_llm_knowledge_security_tools_user,llm.knowledge.security.tools.user,model_llm_knowledge_security_tools,base.group_user,1,1,1,1
+access_llm_knowledge_sync_job_manager,llm.knowledge.sync.job.manager,model_llm_knowledge_sync_job,llm.group_llm_manager,1,1,1,1

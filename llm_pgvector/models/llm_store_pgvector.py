@@ -242,7 +242,7 @@ class LLMStorePgVector(models.Model):
             AND e.embedding_model_id = %s
             AND e.embedding IS NOT NULL
             AND (1 - (e.embedding {query_operator} query_vector.vec)) >= %s
-            ORDER BY score DESC
+            ORDER BY score DESC, e.chunk_id ASC
             LIMIT %s
             OFFSET %s
         """

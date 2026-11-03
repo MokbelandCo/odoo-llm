@@ -273,12 +273,14 @@ class LLMStoreQdrant(models.Model):
         qdrant_collection_name = self.get_santized_collection_name(collection_id)
         qdrant_filter = self._convert_odoo_filter_to_qdrant(filter) if filter else None
         score_threshold = min_similarity
+        offset = max(0, int(kwargs.get("offset", 0)))
 
         search_result = client.query_points(
             collection_name=qdrant_collection_name,
             query=query_vector,
             query_filter=qdrant_filter,
             limit=limit,
+            offset=offset,
             score_threshold=score_threshold,
             with_payload=True,
             with_vectors=False,
