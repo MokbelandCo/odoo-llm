@@ -21,9 +21,8 @@ class LLMToolKnowledgeRetriever(models.Model):
         Returns:
             list: List of tuples with collection_id and name
         """
-        Collection = self.env["llm.knowledge.collection"].sudo()
-        collections = Collection.search([("active", "=", True)])
-        return [(str(collection.id), collection.name) for collection in collections]
+        values = self.env["llm.knowledge.collection"].llm_discover(limit=100)
+        return [(str(value["id"]), value["name"]) for value in values]
 
     def get_input_schema(self):
         schema = super().get_input_schema()
@@ -85,21 +84,28 @@ class LLMToolKnowledgeRetriever(models.Model):
         if not collection:
             raise ValueError("Collection not found")
 
-        search_limit = top_n * top_k * 2
-
         chunk_model = self.env["llm.knowledge.chunk"]
-        chunks = chunk_model.search(
-            args=[("embedding", "=", query)],
-            limit=search_limit,
-            collection_id=collection.id,
-            query_min_similarity=similarity_cutoff,
+        secured = chunk_model.llm_secure_semantic_search(
+            query=query,
+            collection=collection,
+            resource_limit=top_n,
+            chunks_per_resource=top_k,
+            similarity_cutoff=similarity_cutoff,
         )
-
-        result_data = self._process_search_results(
-            chunks=chunks,
-            top_k=top_k,
-            top_n=top_n,
-        )
+        result_data = []
+        for item in secured["results"]:
+            chunk = item["chunk"]
+            result_data.append(
+                {
+                    "content": chunk.content,
+                    "resource_name": chunk.resource_id.name,
+                    "resource_id": chunk.resource_id.id,
+                    "chunk_id": chunk.id,
+                    "chunk_name": chunk.name,
+                    "similarity": round(item["score"], 4),
+                    "similarity_percentage": f"{int(item['score'] * 100)}%",
+                }
+            )
 
         return {
             "query": query,
@@ -107,6 +113,8 @@ class LLMToolKnowledgeRetriever(models.Model):
             "collection_id": collection.id,
             "results": result_data,
             "total_chunks": len(result_data),
+            "incomplete": secured["incomplete"],
+            "examined_candidates": secured["examined_candidates"],
             "embedding_model": collection.embedding_model_id.name
             if collection.embedding_model_id
             else "Unknown",
