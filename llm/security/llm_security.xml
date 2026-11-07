@@ -7,7 +7,6 @@
         <field name="sequence">25</field>
     </record>
 
-    <!-- Update the LLM Manager group to use the new category -->
     <record id="group_llm_manager" model="res.groups">
         <field name="name">LLM Manager</field>
         <field name="category_id" ref="module_category_llm" />

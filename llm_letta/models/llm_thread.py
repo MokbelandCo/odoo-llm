@@ -290,10 +290,15 @@ class LLMThread(models.Model):
             return existing_key
 
         # Generate new API key with scope 'rpc'
+        user_groups = (
+            thread.user_id.all_group_ids
+            if "all_group_ids" in thread.user_id._fields
+            else thread.user_id.groups_id
+        )
         max_duration = max(
             (
                 group.api_key_duration
-                for group in thread.user_id.groups_id
+                for group in user_groups
                 if group.api_key_duration
             ),
             default=DEFAULT_API_KEY_DURATION,

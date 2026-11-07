@@ -1,3 +1,54 @@
+18.0.1.6.0 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Per-server Protected MCP Endpoint and Protected Operations Only policies
+* [IMP] Authenticate centrally in the MCP dispatcher with fail-closed defaults
+  for future methods
+* [MIG] Preserve operations-only behavior for existing server configurations
+
+18.0.1.5.0 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Generate or rotate an OAuth client secret from the client form
+* [ADD] One-time copy dialog for the plaintext secret (hashed at rest)
+
+18.0.1.4.1 (2026-09-14)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Module upgrade no longer fails when leftover MCP sessions exist but no
+  active config serves ``/mcp``
+* [FIX] Pre-migrate existing configs onto unique endpoint paths (legacy ``/mcp``
+  first) and backfill or drop sessions before the new required column is set
+
+18.0.1.4.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Serve multiple active MCP configurations at unique endpoint paths
+* [ADD] Bind protocol, authentication, sessions, OAuth resources, and tools to the requested endpoint
+* [IMP] Preserve ``/mcp`` as the legacy/default endpoint while supporting paths such as ``/mcp/sales``
+
+18.0.1.3.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Per-config MCP tool exposure: all active tools, or a selected subset
+* [IMP] ``tools/list`` and ``tools/call`` honor the active config allowlist
+
+18.0.1.2.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] OAuth authorize/error pages no longer crash with ``KeyError: 'website'`` when Website is installed
+* [FIX] Authorization redirects now build the callback URL (``urlunparse`` was not imported)
+* [ADD] HTTP tests for the login-gated consent page, allow/deny, and PKCE token exchange
+
+18.0.1.2.0 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] OAuth 2.1 for the MCP HTTP resource server (RFC 9728 / 8414 / 7591 / 8707)
+* [ADD] Protected resource and authorization server well-known metadata
+* [ADD] Authorization code + PKCE, refresh tokens, client credentials, and DCR
+* [IMP] ``WWW-Authenticate`` on 401 now advertises ``resource_metadata``
+* [IMP] Bearer auth accepts OAuth access tokens or existing Odoo API keys
+
 18.0.1.3.1 (2026-01-07)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

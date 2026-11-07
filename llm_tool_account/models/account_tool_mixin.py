@@ -88,8 +88,12 @@ class AccountToolMixin(models.AbstractModel):
         Account = self.env["account.account"].with_company(company)
         base_domain = [
             *self.env['account.account']._check_company_domain(company),
-            ('deprecated', '=', False)
         ]
+        if "active" in Account._fields:
+            # Odoo 19 replaced account.account.deprecated with active.
+            base_domain.append(("active", "=", True))
+        else:
+            base_domain.append(("deprecated", "=", False))
 
         if not identifier or identifier == "all":
             return Account.search(base_domain)
@@ -97,17 +101,25 @@ class AccountToolMixin(models.AbstractModel):
         # Check type shortcuts first
         shortcut = identifier.lower()
         if shortcut in ACCOUNT_TYPE_SHORTCUTS:
-            return Account.search(expression.AND([base_domain, ACCOUNT_TYPE_SHORTCUTS[shortcut]]))
+            return Account.search(
+                expression.AND([base_domain, ACCOUNT_TYPE_SHORTCUTS[shortcut]])
+            )
 
         # Code pattern (exact or LIKE)
         if "%" in identifier:
-            accounts = Account.search(expression.AND([base_domain, [("code", "=like", identifier)]]))
+            accounts = Account.search(
+                expression.AND([base_domain, [("code", "=like", identifier)]])
+            )
         else:
-            accounts = Account.search(expression.AND([base_domain, [("code", "=", identifier)]]))
+            accounts = Account.search(
+                expression.AND([base_domain, [("code", "=", identifier)]])
+            )
 
         if not accounts:
             # Try name search as fallback
-            accounts = Account.search(expression.AND([base_domain,[("name", "ilike", identifier)]]))
+            accounts = Account.search(
+                expression.AND([base_domain, [("name", "ilike", identifier)]])
+            )
 
         if not accounts:
             raise UserError(_("No accounts found matching '%s'") % identifier)

@@ -52,7 +52,7 @@ odoo-bin -d your_db -i llm_mcp_server
 | **External AI** | 🤖 Claude Desktop, Cursor, etc. |
 | **Secure**      | 🔐 API key authentication       |
 | **Standard**    | 📡 MCP protocol (Anthropic)     |
-| **All Tools**   | 🛠️ Exposes all Odoo LLM tools   |
+| **Tools**       | 🛠️ All tools, or a selected subset |
 
 ### Common Setups
 
@@ -141,7 +141,64 @@ url = "http://localhost:8069/mcp"
 http_headers.Authorization = "Bearer YOUR_API_KEY"
 ```
 
-**Other MCP clients**: Connect to `http://localhost:8069/mcp` with `Authorization: Bearer YOUR_API_KEY` header.
+**Other MCP clients**: Connect to `http://localhost:8069/mcp`. HTTP clients that implement MCP OAuth 2.1 discover the authorization server from `/.well-known/oauth-protected-resource/mcp`. API keys remain supported as `Authorization: Bearer YOUR_API_KEY`.
+
+### Multiple MCP Servers
+
+Create any number of MCP Server Configuration records. Every active record is
+served independently at its unique **Endpoint Path**:
+
+- `/mcp` — legacy/default server
+- `/mcp/sales` — a sales-only server
+- `/mcp/admin` — an administrative server
+
+Each record controls its own server identity/version, protocol versions,
+stateful/stateless mode, authentication policy, OAuth/API-key policy, external
+base URL, and exposed tools. Sessions and OAuth tokens are scoped to the
+endpoint that created them; a session or resource token for one endpoint cannot
+be reused on another.
+
+The complete public URL combines **External URL** (or `web.base.url` when
+empty) with **Endpoint Path**. For example, external URL
+`https://odoo.example.com` and path `/mcp/sales` produce
+`https://odoo.example.com/mcp/sales`.
+
+### Authentication Policies
+
+Each MCP server configuration independently chooses when Bearer authentication
+is required:
+
+- **Protected MCP Endpoint** (recommended): authenticates every MCP protocol
+  request, including `initialize`, `notifications/initialized`, and `ping`.
+  This is the recommended policy for private servers such as mokbelhealth.
+- **Protected Operations Only**: preserves compatibility with deployments that
+  intentionally expose MCP negotiation. `initialize`,
+  `notifications/initialized`, and `ping` are public; all other methods,
+  including future MCP capabilities, require authentication unless explicitly
+  added to the server's public-method allowlist.
+
+New configurations use **Protected MCP Endpoint**. During module upgrade,
+pre-existing configurations are migrated to **Protected Operations Only** so
+deployed clients retain the previous public-initialize behavior.
+
+OAuth and API-key settings control which Bearer credentials are accepted, while
+the authentication policy controls when they are required. OAuth may be
+disabled while API-key Bearer authentication remains enabled. A protected
+endpoint cannot disable both mechanisms.
+
+For OAuth-enabled protected endpoints, discovery starts before an MCP session:
+
+```text
+Client -> POST /mcp initialize
+Server -> 401 Unauthorized
+       -> WWW-Authenticate: Bearer resource_metadata="..."
+Client -> Protected Resource Metadata
+       -> Authorization Server Metadata
+       -> OAuth authorization + PKCE
+       -> access token
+       -> retry initialize with Bearer token
+Server -> initialize result (and session ID in stateful mode)
+```
 
 ### 4. Restart & Test
 
@@ -167,15 +224,15 @@ Every Odoo user can connect their own AI client independently:
 
 - **Protocol**: MCP 2025-06-18 spec via JSON-RPC 2.0
 - **Transport**: `streamable-http` (HTTP with streaming responses)
-- **Endpoint**: `/mcp` (POST for requests, streaming responses)
-- **Auth**: Bearer token (Odoo API keys)
+- **Endpoints**: one unique path per active config (`/mcp`, `/mcp/sales`, etc.)
+- **Auth**: OAuth 2.1 (recommended for HTTP) or Bearer API keys
 - **Tools**: Auto-discovered from `llm.tool` registry
 
 ### Request Flow
 
 1. Client sends JSON-RPC request to `/mcp` via POST
 2. Server validates Bearer token → loads user session
-3. For `tools/list`: Returns all active tools user can access
+3. For `tools/list`: Returns tools allowed by that endpoint config and user access
 4. For `tools/call`: Executes tool with user's permissions
 5. Response streamed back via HTTP streaming
 

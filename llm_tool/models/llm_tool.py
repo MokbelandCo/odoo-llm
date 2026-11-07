@@ -102,6 +102,21 @@ class LLMTool(models.Model):
         "Set to false to manually manage this tool's configuration.",
     )
 
+    # Tool category, used by the record rules in security/llm_tool_rules.xml to
+    # decide which tools a user may see. Bridge modules add their own values
+    # with ``selection_add``.
+    category = fields.Selection(
+        [
+            ("general", "General"),
+            ("technical", "Technical"),
+        ],
+        string="Tool Category",
+        default="general",
+        help="Category determines which user groups can access this tool via "
+        "Odoo Record Rules. Third-party modules should use `selection_add` to "
+        "register additional categories.",
+    )
+
     _sql_constraints = [
         (
             "unique_function_tool",
@@ -184,8 +199,12 @@ class LLMTool(models.Model):
         # Generate schema from method signature
         method_func = self._get_implementation_method()
 
-        # Use MCP SDK's func_metadata to generate proper schema
-        from mcp.server.fastmcp.utilities.func_metadata import func_metadata
+        # Use MCP SDK's func_metadata to generate proper schema. The MCP SDK
+        # renamed FastMCP to MCPServer in 2.0, moving this helper along with it.
+        try:
+            from mcp.server.mcpserver.utilities.func_metadata import func_metadata
+        except ImportError:
+            from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
         func_meta = func_metadata(method_func)
 
@@ -534,8 +553,10 @@ class LLMTool(models.Model):
             annotations=tool_annotations,
         )
 
-        # Return plain dict following 'Models Return Plain Data' pattern
-        return mcp_tool.model_dump(exclude_none=True)
+        # Return plain dict following 'Models Return Plain Data' pattern.
+        # by_alias keeps the camelCase keys the MCP wire format expects; MCP SDK
+        # 2.0 renamed the model fields to snake_case and kept them as aliases.
+        return mcp_tool.model_dump(exclude_none=True, by_alias=True)
 
     @api.onchange("implementation")
     def _onchange_implementation(self):

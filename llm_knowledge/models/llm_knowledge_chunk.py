@@ -35,7 +35,7 @@ class LLMKnowledgeChunk(models.Model):
     )
     metadata = fields.Json(
         string="Metadata",
-        default={},
+        default=dict,
         help="Additional metadata for this chunk",
     )
     # Related field to resource collections

@@ -91,7 +91,7 @@
           name="inactive"
           domain="[('active', '=', False)]"
         />
-                <group expand="0" string="Group By">
+                <group name="group_by">
                     <filter
             string="Provider"
             name="group_by_provider"

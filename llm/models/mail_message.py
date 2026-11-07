@@ -233,7 +233,7 @@ class MailMessage(models.Model):
         from odoo.addons.mail.tools.discuss import Store
 
         store = Store()
-        self._to_store(store)
+        store.add(self)
         result = store.get_result()
 
         return result["mail.message"][0]

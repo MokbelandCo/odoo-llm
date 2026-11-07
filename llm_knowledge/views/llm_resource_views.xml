@@ -372,7 +372,7 @@
           name="locked"
           domain="[('lock_date', '!=', False)]"
         />
-                <group expand="0" string="Group By">
+                <group name="group_by">
                     <filter
             string="State"
             name="group_by_state"

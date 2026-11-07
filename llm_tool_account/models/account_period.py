@@ -9,6 +9,17 @@ from odoo.addons.llm_tool.decorators import llm_tool
 
 _logger = logging.getLogger(__name__)
 
+# Lock types exposed by the tools, mapped to the res.company fields that back
+# them. Odoo 19 dropped the "non-advisers" period_lock_date in favour of the
+# per-journal-type sale/purchase locks plus the irreversible hard lock.
+LOCK_FIELD_MAP = {
+    "all_users": "fiscalyear_lock_date",
+    "tax": "tax_lock_date",
+    "sale": "sale_lock_date",
+    "purchase": "purchase_lock_date",
+    "hard": "hard_lock_date",
+}
+
 
 class AccountPeriod(models.Model):
     _name = "account.tool.period"
@@ -79,17 +90,7 @@ class AccountPeriod(models.Model):
         )
 
         # 4. Current lock dates
-        lock_dates = {
-            "fiscalyear_lock_date": str(company.fiscalyear_lock_date)
-            if company.fiscalyear_lock_date
-            else None,
-            "period_lock_date": str(company.period_lock_date)
-            if company.period_lock_date
-            else None,
-            "tax_lock_date": str(company.tax_lock_date)
-            if company.tax_lock_date
-            else None,
-        }
+        lock_dates = self._get_lock_dates(company)
 
         checks = [
             {
@@ -127,6 +128,13 @@ class AccountPeriod(models.Model):
             else "Some checks failed - review before closing",
         }
 
+    def _get_lock_dates(self, company) -> dict:
+        """Return the company lock dates as YYYY-MM-DD strings."""
+        return {
+            field_name: str(company[field_name]) if company[field_name] else None
+            for field_name in LOCK_FIELD_MAP.values()
+        }
+
     @llm_tool(destructive_hint=True)
     def account_set_lock_date(
         self,
@@ -136,33 +144,29 @@ class AccountPeriod(models.Model):
         """Set accounting lock date
 
         Prevents modifications to journal entries on or before the lock
-        date. Different lock types control who is affected.
+        date. Different lock types control which entries are affected.
 
         Args:
             lock_date: Lock date in YYYY-MM-DD format
             lock_type: Type of lock:
-                       "all_users" - Lock for everyone (fiscalyear_lock_date)
-                       "non_advisers" - Lock for non-advisers (period_lock_date)
+                       "all_users" - Global lock (fiscalyear_lock_date)
                        "tax" - Tax return lock (tax_lock_date)
+                       "sale" - Sales entries lock (sale_lock_date)
+                       "purchase" - Purchase entries lock (purchase_lock_date)
+                       "hard" - Irreversible lock (hard_lock_date)
 
         Returns:
             Dictionary with updated lock dates
         """
         company = self.env.company
 
-        lock_field_map = {
-            "all_users": "fiscalyear_lock_date",
-            "non_advisers": "period_lock_date",
-            "tax": "tax_lock_date",
-        }
-
-        if lock_type not in lock_field_map:
+        if lock_type not in LOCK_FIELD_MAP:
             raise UserError(
                 _("Invalid lock_type '%s'. Use: %s")
-                % (lock_type, ", ".join(lock_field_map.keys()))
+                % (lock_type, ", ".join(LOCK_FIELD_MAP.keys()))
             )
 
-        field_name = lock_field_map[lock_type]
+        field_name = LOCK_FIELD_MAP[lock_type]
         company.write({field_name: lock_date})
 
         return {
@@ -170,16 +174,6 @@ class AccountPeriod(models.Model):
             "lock_type": lock_type,
             "field": field_name,
             "lock_date": lock_date,
-            "all_lock_dates": {
-                "fiscalyear_lock_date": str(company.fiscalyear_lock_date)
-                if company.fiscalyear_lock_date
-                else None,
-                "period_lock_date": str(company.period_lock_date)
-                if company.period_lock_date
-                else None,
-                "tax_lock_date": str(company.tax_lock_date)
-                if company.tax_lock_date
-                else None,
-            },
+            "all_lock_dates": self._get_lock_dates(company),
             "message": f"Lock date '{lock_type}' set to {lock_date}",
         }

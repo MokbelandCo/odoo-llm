@@ -5,6 +5,7 @@
         <field name="name">Assistant Creator</field>
         <field name="prompt_id" ref="llm_prompt_assistant_creator" />
         <field name="active" eval="True" />
+        <field name="is_public" eval="True" />
         <field
       name="tool_ids"
       eval="[(6, 0, [
@@ -21,6 +22,7 @@
         <field name="name">Website Builder Assistant</field>
         <field name="prompt_id" ref="llm_prompt_website_builder" />
         <field name="active" eval="True" />
+        <field name="is_public" eval="True" />
         <field
       name="tool_ids"
       eval="[(6, 0, [

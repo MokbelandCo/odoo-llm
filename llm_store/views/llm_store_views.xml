@@ -72,7 +72,7 @@
           name="inactive"
           domain="[('active', '=', False)]"
         />
-                <group expand="0" string="Group By">
+                <group name="group_by">
                     <filter
             string="Service"
             name="group_by_service"

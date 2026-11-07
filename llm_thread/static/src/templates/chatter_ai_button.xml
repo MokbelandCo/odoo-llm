@@ -26,7 +26,7 @@
         t-on-click="onAIChatClick"
         t-att-title="state.isChattingWithLLM ? 'Exit AI Chat' : 'Start AI Chat'"
       >
-                <i class="fa fa-robot me-1" role="img" aria-label="AI Chat" />
+                <i class="fa fa-magic me-1" role="img" aria-label="AI Chat" />
                 <span
           class="d-none d-sm-inline"
           t-esc="state.isChattingWithLLM ? 'Exit AI' : 'AI'"
@@ -70,19 +70,19 @@
                             <AttachmentList
                 attachments="attachments"
                 unlinkAttachment.bind="unlinkAttachment"
-                imagesHeight="100"
               />
                             <FileUploader
                 multiUpload="true"
                 fileUploadClass="'o-mail-Chatter-fileUploader'"
-                onUploaded.bind="onUploaded"
+                onUploaded="onUploaded(undefined, { thread: state.thread })"
                 onClick="(ev) => this.onClickAttachFile(ev)"
+                t-key="state.thread.localId"
               >
                                 <t t-set-slot="toggler">
                                     <button
                     class="btn btn-link"
                     type="button"
-                    t-att-disabled="!state.thread.hasWriteAccess"
+                    t-att-disabled="!state.thread.canPostMessage"
                   >
                                         <i class="fa fa-plus-square" />
                                         Attach files

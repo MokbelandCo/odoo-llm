@@ -1,7 +1,7 @@
 import logging
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -55,6 +55,10 @@ class LLMThread(models.Model):
         assistant = self.env["llm.assistant"].browse(assistant_id)
         if not assistant.exists():
             return False
+
+        allowed = self.env["llm.assistant"]._get_allowed_assistants_for_user()
+        if assistant not in allowed:
+            raise AccessError(_("You are not allowed to use this assistant."))
 
         # Update the thread with the assistant and related fields
         update_vals = {
@@ -159,9 +163,9 @@ class LLMThread(models.Model):
 
         return thread, assistant, None
 
-    def _thread_to_store(self, store, **kwargs):
+    def _thread_to_store(self, store, fields, **kwargs):
         """Extend base _thread_to_store to include assistant_id and prompt_id."""
-        super()._thread_to_store(store, **kwargs)
+        super()._thread_to_store(store, fields, **kwargs)
 
         # Always add assistant_id and prompt_id to thread data (either value or False)
         for thread in self:
@@ -184,7 +188,7 @@ class LLMThread(models.Model):
                 if thread.prompt_id
                 else False,
             }
-            store.add("mail.thread", thread_data)
+            store.add_model_values("mail.thread", thread_data)
 
     def _extract_message_content(self, message):
         """Extract text content from a message regardless of format"""

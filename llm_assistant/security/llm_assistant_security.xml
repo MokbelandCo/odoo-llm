@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_assistant_rule_user" model="ir.rule">
+        <field name="name">LLM Assistants: public or allowed groups</field>
+        <field name="model_id" ref="model_llm_assistant" />
+        <field name="domain_force">
+            ['|', ('is_public', '=', True), ('allowed_group_ids', 'in', user.groups_id.ids)]
+        </field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <record id="llm_assistant_rule_manager" model="ir.rule">
+        <field name="name">LLM Assistants: all for managers</field>
+        <field name="model_id" ref="model_llm_assistant" />
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('llm.group_llm_manager'))]" />
+    </record>
+</odoo>

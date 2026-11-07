@@ -49,3 +49,57 @@
     }
   }
 }
+
+.o-llm-thread-header-tools-list {
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 250px;
+}
+
+.o-llm-thread-header-tools-menu {
+  max-width: 16rem;
+
+  .o-llm-thread-header-tools-list {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .form-check-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.o-llm-ThreadHeader-moreMenu {
+  min-width: 220px;
+  max-width: 18rem;
+
+  .o-llm-thread-header-settings--compact {
+    .o-dropdown,
+    .o-llm-thread-header-tools {
+      width: 100%;
+    }
+
+    button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+    }
+  }
+
+  .o-llm-thread-header-tools-list {
+    min-width: 0;
+    max-width: 100%;
+
+    .form-check-label {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}

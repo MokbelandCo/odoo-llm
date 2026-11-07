@@ -59,12 +59,24 @@ class LLMKnowledgeChunkEmbedding(models.Model):
     def _valid_field_parameter(self, field, name):
         return name == "dimension" or super()._valid_field_parameter(field, name)
 
+    def _get_embedding_display_name(self):
+        self.ensure_one()
+        return (
+            f"{self.chunk_id.name or 'Chunk'} "
+            f"[{self.embedding_model_id.name or 'Model'}]"
+        )
+
+    @api.depends("chunk_id.name", "embedding_model_id.name")
+    def _compute_display_name(self):
+        """Use the Odoo 19 display-name hook while remaining valid on Odoo 18."""
+        for record in self:
+            record.display_name = record._get_embedding_display_name()
+
     def name_get(self):
-        """Override to provide a better display name"""
+        """Odoo 18 display-name hook."""
         result = []
         for record in self:
-            name = f"{record.chunk_id.name or 'Chunk'} [{record.embedding_model_id.name or 'Model'}]"
-            result.append((record.id, name))
+            result.append((record.id, record._get_embedding_display_name()))
         return result
 
     @api.model_create_multi

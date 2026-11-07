@@ -134,16 +134,25 @@ class LLMPrompt(models.Model):
     )
 
     _sql_constraints = [
-        ("name_unique", "UNIQUE(name)", "The prompt name must be unique."),
+        (
+            "name_unique",
+            "UNIQUE(name)",
+            "The prompt name must be unique.",
+        )
     ]
 
     @api.model_create_multi
     def create(self, vals_list):
         prompts = super().create(vals_list)
+        for prompt, vals in zip(prompts, vals_list):
+            if "arguments_json" not in vals:
+                prompt._ensure_arguments_sync()
         return prompts
 
     def write(self, vals):
         result = super().write(vals)
+        if "template" in vals:
+            self._ensure_arguments_sync()
         return result
 
     def copy(self, default=None):

@@ -83,7 +83,7 @@ patch(Chatter.prototype, {
     this.store.discuss.thread = llmThread;
 
     // Fetch thread data
-    await llmThread.fetchData(["messages"]);
+    await llmThread.fetchThreadData(["messages"]);
 
     // Open AI chat mode
     this.state.isChattingWithLLM = true;
@@ -175,7 +175,7 @@ patch(Chatter.prototype, {
           this.store.discuss.thread = llmThread;
 
           // Fetch thread data
-          await llmThread.fetchData(["messages"]);
+          await llmThread.fetchThreadData(["messages"]);
 
           this.state.isChattingWithLLM = true;
           this.state.llmThreadId = threadId;

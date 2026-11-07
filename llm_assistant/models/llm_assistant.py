@@ -75,7 +75,6 @@ class LLMAssistant(models.Model):
         ondelete="restrict",
         tracking=True,
         required=True,
-        auto_join=True,
         help="Prompt template to use for generating system prompts",
     )
 
@@ -163,7 +162,11 @@ class LLMAssistant(models.Model):
     )
 
     _sql_constraints = [
-        ("unique_code", "UNIQUE(code)", "Assistant code must be unique."),
+        (
+            "unique_code",
+            "UNIQUE(code)",
+            "Assistant code must be unique.",
+        )
     ]
 
     @api.depends("prompt_id", "default_values")
@@ -205,7 +208,7 @@ class LLMAssistant(models.Model):
                     assistant.name,
                     str(e),
                 )
-                assistant.system_prompt_preview = f"Error: {str(e)}"
+                assistant.system_prompt_preview = f"Error: {e!s}"
 
     @api.depends("thread_ids")
     def _compute_thread_count(self):
@@ -360,7 +363,7 @@ class LLMAssistant(models.Model):
                 "tag": "display_notification",
                 "params": {
                     "title": "Error",
-                    "message": f"Error generating template JSON: {str(e)}",
+                    "message": f"Error generating template JSON: {e!s}",
                     "type": "danger",
                 },
             }
@@ -419,7 +422,7 @@ class LLMAssistant(models.Model):
     def create(self, vals_list):
         """Override create to ensure default_values is valid JSON"""
         for vals in vals_list:
-            if "default_values" in vals and vals["default_values"]:
+            if vals.get("default_values"):
                 try:
                     json.loads(vals["default_values"])
                 except json.JSONDecodeError:
@@ -479,6 +482,12 @@ class LLMAssistant(models.Model):
         assistant = self.browse(int(assistant_id))
         if not assistant.exists():
             return None, {"success": False, "error": "Assistant not found"}
+        allowed = self._get_allowed_assistants_for_user()
+        if assistant not in allowed:
+            return None, {
+                "success": False,
+                "error": "You are not allowed to use this assistant.",
+            }
         return assistant, None
 
     def get_assistant_values(self, thread, include_prompt=True):
@@ -523,22 +532,45 @@ class LLMAssistant(models.Model):
         if not user:
             user = self.env.user
 
-        # Admin can access all assistants
-        if user.has_group("base.group_system"):
-            return self.search([])
+        assistants = self.with_user(user)
+        # Admin and LLM managers can access all assistants
+        if user.has_group("base.group_system") or user.has_group(
+            "llm.group_llm_manager"
+        ):
+            return assistants.search([])
 
         # Assistants allowed for user's groups
-        if user.groups_id:
+        user_groups = self._get_user_groups(user)
+        if user_groups:
             domain = [
                 "|",
                 ("is_public", "=", True),
-                ("allowed_group_ids", "in", user.groups_id.ids),
+                ("allowed_group_ids", "in", user_groups.ids),
             ]
         else:
             # If user has no groups, only public assistants
             domain = [("is_public", "=", True)]
 
-        return self.search(domain)
+        return assistants.search(domain)
+
+    @api.model
+    def _get_user_groups(self, user):
+        """Return user groups on both Odoo 18 and 19."""
+        if "all_group_ids" in user._fields:
+            return user.all_group_ids
+        return user.groups_id
+
+    @api.model
+    def get_allowed_assistants(self):
+        """Return active assistants the current user is allowed to use.
+
+        Used by the frontend dropdown so listing is enforced server-side
+        rather than by filtering a broad searchRead.
+        """
+        assistants = self._get_allowed_assistants_for_user().filtered("active")
+        return assistants.read(
+            ["id", "name", "is_public", "provider_id", "model_id", "tool_ids"]
+        )
 
     @api.model
     def get_assistant_by_code(self, code):

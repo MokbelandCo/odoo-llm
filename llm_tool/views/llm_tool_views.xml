@@ -8,6 +8,7 @@
             <list>
                 <field name="name" />
                 <field name="implementation" />
+                <field name="category" />
                 <field name="title" optional="show" />
                 <field name="default" />
                 <field name="active" />
@@ -66,6 +67,9 @@
                 invisible="read_only_hint"
               />
                             <field name="open_world_hint" />
+                        </group>
+                        <group string="Access Control">
+                            <field name="category" />
                         </group>
                     </group>
                     <notebook>
@@ -160,7 +164,7 @@
           name="requires_consent"
           domain="[('requires_user_consent', '=', True)]"
         />
-                <group expand="0" string="Group By">
+                <group name="group_by">
                     <filter
             string="Implementation"
             name="group_by_implementation"

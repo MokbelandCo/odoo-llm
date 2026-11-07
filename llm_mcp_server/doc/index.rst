@@ -62,7 +62,7 @@ Why Use This Module?
 +-----------------+---------------------------------+
 | **Standard**    | 📡 MCP protocol (Anthropic)     |
 +-----------------+---------------------------------+
-| **All Tools**   | 🛠️ Exposes all Odoo LLM tools   |
+| **Tools**       | 🛠️ All tools, or a selected subset |
 +-----------------+---------------------------------+
 
 Common Setups
@@ -158,6 +158,42 @@ This generates an API key with ready-to-copy client configurations.
 
 **Other clients**: Connect to ``http://localhost:8069/mcp`` with Bearer auth
 
+Multiple MCP Servers
+~~~~~~~~~~~~~~~~~~~~
+
+Create any number of MCP Server Configuration records. Every active record is
+served independently at its unique **Endpoint Path**, for example ``/mcp``,
+``/mcp/sales``, or ``/mcp/admin``. Each endpoint has its own server identity,
+protocol versions, state mode, authentication policy, external base URL, and
+tool selection. Sessions and OAuth resources are scoped to their endpoint.
+
+The complete URL combines **External URL** (or ``web.base.url``) and
+**Endpoint Path**.
+
+Authentication Policies
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Each server independently chooses an **Authentication Policy**:
+
+- **Protected MCP Endpoint** (recommended for private servers such as
+  mokbelhealth) requires Bearer authentication for every MCP request, including
+  ``initialize``, ``notifications/initialized``, and ``ping``.
+- **Protected Operations Only** keeps protocol negotiation public for backward
+  compatibility. Only ``initialize``, ``notifications/initialized``, and
+  ``ping`` are explicitly public; all other current and future methods default
+  to protected.
+
+New records default to Protected MCP Endpoint. Existing records migrate to
+Protected Operations Only during upgrade to preserve deployed integrations.
+OAuth and API-key settings select the accepted Bearer credential types. A
+protected endpoint must enable OAuth or API keys.
+
+An OAuth-capable client first receives ``401 Unauthorized`` and a
+``WWW-Authenticate: Bearer`` challenge containing the endpoint-specific
+``resource_metadata`` URL. It then discovers protected-resource and
+authorization-server metadata, completes authorization with PKCE, obtains an
+access token, and retries ``initialize`` with that token.
+
 4. Restart & Test
 ~~~~~~~~~~~~~~~~~
 
@@ -175,7 +211,7 @@ Architecture
 
 - **Protocol**: MCP 2025-06-18 spec via JSON-RPC 2.0
 - **Transport**: ``streamable-http`` (HTTP with streaming responses)
-- **Endpoint**: ``/mcp`` (POST for requests, streaming responses)
+- **Endpoints**: one unique path per active config (``/mcp``, ``/mcp/sales``, etc.)
 - **Auth**: Bearer token (Odoo API keys)
 - **Tools**: Auto-discovered from ``llm.tool`` registry
 
@@ -184,7 +220,7 @@ Request Flow
 
 1. Client sends JSON-RPC request to ``/mcp`` via POST
 2. Server validates Bearer token → loads user session
-3. For ``tools/list``: Returns all active tools user can access
+3. For ``tools/list``: Returns tools allowed by that endpoint and user access
 4. For ``tools/call``: Executes tool with user's permissions
 5. Response streamed back via HTTP streaming
 

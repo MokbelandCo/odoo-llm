@@ -1,18 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <!-- Extend existing thread header to add assistant dropdown -->
     <t
-    t-name="llm_thread.LLMThreadHeader"
-    t-inherit="llm_thread.LLMThreadHeader"
+    t-name="llm_thread.LLMThreadHeader.settings"
+    t-inherit="llm_thread.LLMThreadHeader.settings"
     t-inherit-mode="extension"
   >
-        <!-- Add assistant dropdown to DESKTOP header (after tools dropdown) -->
         <xpath
-      expr="//div[hasclass('o-llm-thread-header')]//Dropdown[contains(@t-if, 'availableTools')]"
+      expr="//div[hasclass('o-llm-thread-header-tools')]"
       position="after"
     >
-            <!-- Assistant Dropdown -->
-            <Dropdown t-if="availableAssistants.length > 0 or currentAssistant">
+            <Dropdown t-if="compact or availableAssistants.length > 0 or currentAssistant">
                 <button
           class="btn btn-sm btn-outline-secondary dropdown-toggle"
         >
@@ -24,7 +21,6 @@
                     <span t-else="">No Assistant</span>
                 </button>
                 <t t-set-slot="content">
-                    <!-- Clear Assistant Option -->
                     <t t-if="currentAssistant">
                         <DropdownItem
               onSelected="() => this.clearAssistant()"
@@ -35,8 +31,6 @@
                         </DropdownItem>
                         <div class="dropdown-divider" />
                     </t>
-
-                    <!-- Available Assistants -->
                     <t
             t-foreach="availableAssistants"
             t-as="assistant"
@@ -54,8 +48,6 @@
                             </div>
                         </DropdownItem>
                     </t>
-
-                    <!-- No Assistants Available -->
                     <div
             t-if="availableAssistants.length === 0"
             class="dropdown-item-text text-muted"
@@ -65,7 +57,5 @@
                 </t>
             </Dropdown>
         </xpath>
-
-        <!-- Mobile: No assistant dropdown in header - use form view via cog button instead -->
     </t>
 </templates>
