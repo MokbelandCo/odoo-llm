@@ -143,7 +143,10 @@ class LLMTool(models.Model):
 
     def get_pydantic_model_from_signature(self, method):
         """Create a Pydantic model from a method signature"""
-        type_hints = get_type_hints(method)
+        # include_extras keeps Annotated constraints (Field(ge=0), custom domain
+        # types). Plain get_type_hints strips them, so runtime validation would
+        # accept values the generated MCP schema rejects. Same as llm_tool 17.0.4.4.0.
+        type_hints = get_type_hints(method, include_extras=True)
         signature = inspect.signature(method)
         fields = {}
 
