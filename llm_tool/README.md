@@ -222,6 +222,28 @@ destructive_hint = True        # Tool may modify/delete data
 
 Configure consent rules in: **LLM → Configuration → Tool Consent Configs**
 
+## Odoo Record Retriever
+
+`odoo_record_retriever` reads records as the current user. It does not use `sudo` or SQL.
+
+The `domain` argument is a JSON Odoo domain in prefix notation, the same shape `search` accepts:
+
+- `[["is_company", "=", true], ["parent_id", "=", null]]` is an implicit AND
+- `["|", ["name", "ilike", "a"], ["name", "ilike", "b"]]` is OR
+- `["!", ["active", "=", false]]` is NOT
+- `["&", "|", <condition>, <condition>, <condition>]` nests operators
+- `["id", "in", [1, 2]]`, `["name", "not in", ["A", "B"]]` and `["id", "in", []]` keep list operands
+- `["parent_id.name", "=", "Acme"]` searches dotted relational fields
+- `"any"` / `"not any"` take a nested domain
+
+`fields` is a list of field-name strings. Omit it, or pass `[]`, to read the model's default fields. `limit` defaults to 100. `offset` defaults to 0. Both must be integers greater than or equal to 0. `order` is an ORM order string such as `"name asc, id desc"`. Omit `order` to keep the model order. End `order` with a unique key such as `id` so paging over unchanged data does not skip or repeat rows.
+
+Invalid domains, operators, value types, orders and negative `limit` or `offset` raise an error. They are not dropped.
+
+### Schema refresh
+
+The tool row is created from `data/llm_tool_data.xml` with `noupdate="1"`. Upgrade to `17.0.4.4.0` runs `migrations/17.0.4.4.0/post-migration.py`, which updates that same record and clears a stored `input_schema` that does not mention `offset`. Discovery then builds the schema from the method signature. Restart Odoo after the upgrade and refresh MCP `tools/list`. Do not create a second `odoo_record_retriever` record. If a database still has a hand-edited schema, use **Reset Input Schema** on the tool or run the module upgrade again.
+
 ## Testing Your Tools
 
 ```python

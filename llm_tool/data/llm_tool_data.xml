@@ -4,9 +4,17 @@
         <field name="name">odoo_record_retriever</field>
         <field name="implementation">odoo_record_retriever</field>
         <field name="category">general</field>
-        <field
-      name="description"
-    >Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned.</field>
+        <field name="description"><![CDATA[Retrieve records from an Odoo model using the caller's access rights.
+
+Arguments:
+- model: technical model name.
+- domain: JSON Odoo domain in prefix notation. Conditions are ["field", "operator", value]. Implicit AND applies when operators are omitted. Prefix "&", "|" and "!" may be nested. Values may be strings, numbers, booleans, null, or lists (for "in" and "not in", including an empty list). "any" and "not any" take a nested domain. Dotted relational fields are allowed. This is an ORM domain, not a Python expression.
+- fields: list of field-name strings. Omit or pass [] to read the model's default fields.
+- limit: maximum number of rows. Default 100. Must be an integer >= 0.
+- offset: number of rows to skip. Default 0. Must be an integer >= 0.
+- order: optional ORM order string such as "name asc, id asc". Omit it to keep the model order. Multiple fields and asc/desc are supported. For reliable paging over unchanged data, end the order with a unique key such as id.
+
+The result is a JSON list of records. Record rules, field permissions and company restrictions of the current user apply. Invalid domains, fields, operators, value types, orders and negative pagination values raise an error.]]></field>
         <field name="default" eval="True" />
         <field name="active" eval="True" />
         <field name="requires_user_consent" eval="False" />
