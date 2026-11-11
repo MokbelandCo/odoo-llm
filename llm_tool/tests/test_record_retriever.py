@@ -445,6 +445,94 @@ class TestOdooRecordRetriever(LLMToolCase):
                 fields=["id", "request"],
             )
 
+    def test_explicit_zero_limit_and_empty_lists_match_orm(self):
+        token = self._token()
+        partners = self.env["res.partner"].create(
+            [{"name": "%s Zero %s" % (token, index)} for index in range(3)]
+        )
+        domain = [["id", "in", partners.ids]]
+        rows = self._execute(
+            model="res.partner",
+            domain=domain,
+            fields=["id", "name"],
+            limit=0,
+            offset=0,
+            order="id asc",
+        )
+        self.assertEqual(
+            rows,
+            self._orm_rows(
+                "res.partner", domain, ["id", "name"], limit=0, order="id asc"
+            ),
+        )
+        self.assertEqual([row["id"] for row in rows], partners.ids)
+        self.assertEqual(
+            self._execute(
+                model="res.partner",
+                domain=domain,
+                fields=[],
+                limit=0,
+                order="id asc",
+            ),
+            self._orm_rows("res.partner", domain, [], limit=0, order="id asc"),
+        )
+        self.assertEqual(
+            self._execute(model="res.partner", domain=[["id", "in", []]], limit=0),
+            [],
+        )
+
+    def test_field_groups_and_allowed_companies(self):
+        token = self._token()
+        second_company = self.env["res.company"].create({"name": "Second %s" % token})
+        user = self.env["res.users"].create(
+            {
+                "name": "Retriever Multi %s" % token,
+                "login": "retriever_multi_%s" % token,
+                "groups_id": [(6, 0, [self.env.ref("base.group_user").id])],
+                "company_id": self.env.company.id,
+                "company_ids": [(6, 0, [self.env.company.id, second_company.id])],
+            }
+        )
+        here = self.env["res.partner"].create(
+            {"name": "Here %s" % token, "company_id": self.env.company.id}
+        )
+        there = self.env["res.partner"].create(
+            {"name": "There %s" % token, "company_id": second_company.id}
+        )
+        domain = [["id", "in", [here.id, there.id]]]
+        tool = self.tool.with_user(user).with_context(
+            allowed_company_ids=[self.env.company.id]
+        )
+        rows = tool.execute(
+            {"model": "res.partner", "domain": domain, "fields": ["id"], "order": "id asc"}
+        )
+        self.assertEqual([row["id"] for row in rows], [here.id])
+        both = self.tool.with_user(user).with_context(
+            allowed_company_ids=[self.env.company.id, second_company.id]
+        )
+        rows = both.execute(
+            {"model": "res.partner", "domain": domain, "fields": ["id"], "order": "id asc"}
+        )
+        self.assertEqual([row["id"] for row in rows], [here.id, there.id])
+
+        message = here.message_post(body="Retriever %s" % token, message_type="comment")
+        with self.assertRaises(AccessError):
+            self._execute(
+                user=user,
+                model="mail.message",
+                domain=[["id", "=", message.id]],
+                fields=["id", "mail_ids"],
+            )
+        omitted = self._execute(
+            user=user, model="mail.message", domain=[["id", "=", message.id]]
+        )
+        self.assertEqual(
+            omitted,
+            self._orm_rows("mail.message", [["id", "=", message.id]], [], user=user),
+        )
+        self.assertEqual([row["id"] for row in omitted], [message.id])
+        self.assertNotIn("mail_ids", omitted[0])
+
     def test_refresh_clears_stale_schema_without_a_second_tool(self):
         self.tool.write(
             {
