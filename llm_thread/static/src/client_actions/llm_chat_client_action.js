@@ -1,10 +1,11 @@
 /** @odoo-module **/
 
 import { _t } from "@web/core/l10n/translation";
-import { Component, onWillDestroy, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { LLMChatContainer } from "@llm_thread/components/llm_chat_container/llm_chat_container";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useSetupAction } from "@web/webclient/actions/action_hook";
 
 /**
  * LLM Chat Client Action - Main entry point for LLM chat functionality
@@ -22,12 +23,17 @@ export class LLMChatClientAction extends Component {
     this.notification = useService("notification");
     this.action = useService("action");
 
-    onWillStart(() => {
-      return this.initializeLLMChat(this.props);
+    // Do not destroy llm.store on unmount: it owns the streams of the popup
+    // windows too, and a response must keep streaming while this action sits
+    // in the breadcrumbs. The selected thread comes back through props.state.
+    useSetupAction({
+      getLocalState: () => ({
+        llmThreadId: this.llmStore.activeLLMThread?.id || null,
+      }),
     });
 
-    onWillDestroy(() => {
-      this.cleanup();
+    onWillStart(() => {
+      return this.initializeLLMChat(this.props);
     });
   }
 
@@ -39,6 +45,14 @@ export class LLMChatClientAction extends Component {
   async initializeLLMChat(props) {
     try {
       await this.llmStore.isReady;
+
+      const restoredThreadId = props.state?.llmThreadId;
+      if (restoredThreadId) {
+        const restored = await this.llmStore.selectThread(restoredThreadId);
+        if (restored) {
+          return;
+        }
+      }
 
       const activeId = this.getActiveId(props);
 
@@ -172,14 +186,6 @@ export class LLMChatClientAction extends Component {
         { type: "danger" }
       );
     }
-  }
-
-  /**
-   * Cleanup when component is destroyed
-   */
-  cleanup() {
-    // Stop any streaming
-    this.llmStore.destroy();
   }
 }
 

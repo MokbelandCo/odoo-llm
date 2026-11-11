@@ -84,6 +84,18 @@ export class LLMToolMessage extends Component {
   }
 
   /**
+   * Record links registered and access-checked by the server for this tool
+   * result. Clicks are handled by the mail store (store_service_patch.js).
+   */
+  get recordLinks() {
+    return this.props.message.llm_record_links || [];
+  }
+
+  recordLinkLabel(link) {
+    return _t("Open %s", link.label);
+  }
+
+  /**
    * Get status icon class
    */
   get statusIconClass() {

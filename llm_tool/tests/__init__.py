@@ -2,3 +2,4 @@ from . import test_llm_tool_concurrency
 from . import test_llm_tool_core
 from . import test_llm_tool_schema
 from . import test_record_retriever
+from . import test_record_reference

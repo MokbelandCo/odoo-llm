@@ -21,6 +21,25 @@
                 </span>
             </div>
 
+            <div
+        t-if="recordLinks.length"
+        class="o_llm_tool_record_links d-flex flex-wrap gap-2 mb-2"
+      >
+                <a
+          t-foreach="recordLinks"
+          t-as="link"
+          t-key="link.ref"
+          class="o_llm_record_link o_llm_tool_record_link btn btn-sm btn-outline-primary"
+          t-att-href="link.url"
+          t-att-data-oe-model="link.model"
+          t-att-data-oe-id="link.id"
+          t-att-title="recordLinkLabel(link)"
+        >
+                    <i class="fa fa-external-link me-1" aria-hidden="true" />
+                    <t t-esc="recordLinkLabel(link)" />
+                </a>
+            </div>
+
             <!-- Arguments Section -->
             <div class="o_llm_tool_result_section mb-2">
                 <div class="d-flex align-items-center">

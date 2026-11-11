@@ -9,7 +9,7 @@
     "author": "mokbelhealth inc.",
     "website": "https://www.mokbelhealth.com",
     "category": "Technical",
-    "version": "17.0.1.0.0",
+    "version": "17.0.1.1.0",
     "depends": ["llm", "llm_thread", "llm_assistant"],
     "data": [
         "data/llm_dummy_data.xml",
