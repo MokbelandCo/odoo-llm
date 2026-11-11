@@ -127,5 +127,5 @@ class TestDummyRecordLinks(TransactionCase):
     def test_no_instruction_outside_chat_ui(self):
         """Automation/background generation does not get the instruction."""
         self._generate("record link for Dummy Link Partner", chat_ui=False)
-        message, vals = self._assistant_reply()
+        message, _vals = self._assistant_reply()
         self.assertNotIn("odoo-ref", message.body)

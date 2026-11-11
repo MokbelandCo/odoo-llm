@@ -136,7 +136,9 @@ class TestRecordLinks(TransactionCase):
         hidden = self.env["res.partner"].create(
             {"name": "Hidden", "company_id": self.other_company.id}
         )
-        tool_message = self._run_tool(self.thread, {"contact": record_reference(hidden)})
+        tool_message = self._run_tool(
+            self.thread, {"contact": record_reference(hidden)}
+        )
         self.assertIsNone(tool_message.body_json["result"]["contact"]["link_token"])
         self.assertEqual(tool_message.body_json["record_refs"], [])
 
@@ -301,7 +303,8 @@ class TestRecordLinks(TransactionCase):
         bodies = [
             str(event["message"]["body"])
             for event in events
-            if event.get("type") in ("message_create", "message_chunk", "message_update")
+            if event.get("type")
+            in ("message_create", "message_chunk", "message_update")
         ]
         self.assertGreater(len(bodies), 3)
         for body in bodies:
@@ -331,7 +334,10 @@ class TestRecordLinks(TransactionCase):
         vals = self._formatted(tool_message)
         self.assertNotIn("record_refs", vals["body_json"])
         self.assertEqual(
-            [(link["model"], link["id"], link["label"]) for link in vals["llm_record_links"]],
+            [
+                (link["model"], link["id"], link["label"])
+                for link in vals["llm_record_links"]
+            ],
             [
                 ("res.partner", self.partner.id, "Linked Partner"),
                 ("res.partner", other.id, "Second"),

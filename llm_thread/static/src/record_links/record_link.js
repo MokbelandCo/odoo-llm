@@ -31,7 +31,11 @@ export function getLLMRecordLink(ev) {
  */
 export function isModifiedClick(ev) {
   return Boolean(
-    ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || (ev.button && ev.button !== 0)
+    ev.ctrlKey ||
+      ev.metaKey ||
+      ev.shiftKey ||
+      ev.altKey ||
+      (ev.button && ev.button !== 0)
   );
 }
 
@@ -73,7 +77,9 @@ export async function openLLMRecordLink(env, { resModel, resId }) {
     if (!(error instanceof RPCError)) {
       console.error("Could not open record link:", error);
       notification.add(
-        _t("Could not open this record. It may have been deleted or you may not have access."),
+        _t(
+          "Could not open this record. It may have been deleted or you may not have access."
+        ),
         { type: "danger" }
       );
     }

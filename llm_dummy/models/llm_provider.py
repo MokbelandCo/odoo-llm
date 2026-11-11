@@ -70,7 +70,9 @@ class LLMProvider(models.Model):
                     "type": "function",
                     "function": {
                         "name": _DEMO_TOOL,
-                        "arguments": json.dumps({"name": (match.group(1) or "").strip()}),
+                        "arguments": json.dumps(
+                            {"name": (match.group(1) or "").strip()}
+                        ),
                     },
                 }
                 yield {"tool_calls": [tool_call]}

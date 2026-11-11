@@ -14,7 +14,10 @@ class TestRecordLinksTour(HttpCase):
         env = self.env(user=admin)
         services = env["llm.provider"]._selection_service()
         provider = env["llm.provider"].create(
-            {"name": "Tour Provider", "service": services[0][0] if services else "dummy"}
+            {
+                "name": "Tour Provider",
+                "service": services[0][0] if services else "dummy",
+            }
         )
         model = env["llm.model"].create(
             {"name": "tour-model", "provider_id": provider.id, "model_use": "chat"}

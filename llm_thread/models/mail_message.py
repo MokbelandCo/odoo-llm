@@ -57,9 +57,7 @@ class MailMessage(models.Model):
         return fields_list
 
     def message_format(self, format_reply=True, msg_vals=None):
-        vals_list = super().message_format(
-            format_reply=format_reply, msg_vals=msg_vals
-        )
+        vals_list = super().message_format(format_reply=format_reply, msg_vals=msg_vals)
         messages_by_id = {message.id: message for message in self}
         for vals in vals_list:
             message = messages_by_id.get(vals.get("id"))

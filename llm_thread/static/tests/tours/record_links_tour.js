@@ -6,7 +6,8 @@ const THREAD_NAME = "Tour Record Link Thread";
 const PARTNER_NAME = "Tour Link Partner";
 const CHAT = ".o_LLMChatContainer";
 const POPUP = ".o-llm-ChatWindow";
-const INLINE_LINK = "a.o_llm_record_link:not(.o_llm_tool_record_link):contains(Click here)";
+const INLINE_LINK =
+  "a.o_llm_record_link:not(.o_llm_tool_record_link):contains(Click here)";
 const FALLBACK_LINK = `a.o_llm_tool_record_link:contains(${PARTNER_NAME})`;
 const DRAFT = "draft kept across navigation";
 
@@ -21,15 +22,19 @@ function assertNoReload() {
 }
 
 function assertBreadcrumbs(expected) {
-  const previous = [...document.querySelectorAll(".o_breadcrumb .breadcrumb-item a")].map(
-    (el) => el.textContent.trim()
+  const previous = [
+    ...document.querySelectorAll(".o_breadcrumb .breadcrumb-item a"),
+  ].map((el) => el.textContent.trim());
+  const current = document.querySelector(
+    ".o_breadcrumb .o_last_breadcrumb_item"
   );
-  const current = document.querySelector(".o_breadcrumb .o_last_breadcrumb_item");
   const items = [...previous, current ? current.textContent.trim() : ""];
   const ok =
     items.length === expected.length &&
     expected.every((name, index) =>
-      index === expected.length - 1 ? items[index].startsWith(name) : items[index] === name
+      index === expected.length - 1
+        ? items[index].startsWith(name)
+        : items[index] === name
     );
   if (!ok) {
     throw new Error(`Unexpected breadcrumbs ${JSON.stringify(items)}`);
@@ -88,7 +93,9 @@ registry.category("web_tour.tours").add("llm_thread_record_links_tour", {
         assertNoReload();
         const input = document.querySelector(`${CHAT} .o-mail-Composer-input`);
         if (input.value !== DRAFT) {
-          throw new Error(`Composer draft lost: ${JSON.stringify(input.value)}`);
+          throw new Error(
+            `Composer draft lost: ${JSON.stringify(input.value)}`
+          );
         }
       },
     },
@@ -120,7 +127,9 @@ registry.category("web_tour.tours").add("llm_thread_record_links_tour", {
       content: "Make the form invalid (required name)",
       trigger: ".o_form_view .o_field_widget[name=name] input",
       run() {
-        const input = document.querySelector(".o_form_view .o_field_widget[name=name] input");
+        const input = document.querySelector(
+          ".o_form_view .o_field_widget[name=name] input"
+        );
         input.value = "";
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -153,7 +162,11 @@ registry.category("web_tour.tours").add("llm_thread_record_links_tour", {
       extra_trigger: POPUP,
       run() {
         assertNoReload();
-        assertBreadcrumbs(["Chat", `${PARTNER_NAME} Saved`, `${PARTNER_NAME} Saved`]);
+        assertBreadcrumbs([
+          "Chat",
+          `${PARTNER_NAME} Saved`,
+          `${PARTNER_NAME} Saved`,
+        ]);
       },
     },
   ],
