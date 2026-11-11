@@ -1,3 +1,15 @@
+17.0.1.7.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Record links: tool results with record references get thread-bound
+  signed link tokens; assistant tokens render as native record anchors and
+  tool cards show "Open <label>" fallback links (docs/RECORD_LINKS.md)
+* [ADD] Shared record-link system instruction for chats started from the UI
+* [IMP] Record link clicks open the form with the action service
+  (target current, breadcrumbs kept, unsaved-change checks apply)
+* [FIX] Chat action no longer destroys llm.store on unmount (kept popup and
+  background streams alive); selected thread restored from breadcrumbs
+
 18.0.1.4.5 (2026-01-17)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

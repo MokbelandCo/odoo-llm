@@ -175,6 +175,11 @@ thread.tool_ids = [(6, 0, [
 # Tools are executed with user's permissions
 ```
 
+Tools can return `record_reference(record)` (from `llm_tool.record_reference`)
+to let the chat show a link to the record. Clicking it opens the form without
+reloading the page and keeps the chat in the breadcrumbs. See
+[docs/RECORD_LINKS.md](docs/RECORD_LINKS.md).
+
 ### Concurrent Generation Protection
 
 PostgreSQL advisory locks prevent race conditions:
