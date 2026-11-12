@@ -74,31 +74,45 @@ class LLMProvider(models.Model):
         consent_instruction = config.system_message_template.format(
             tool_names=tool_names
         )
+        return self._append_system_instruction(prepend_messages, consent_instruction)
 
+    def _append_system_instruction(self, prepend_messages, instruction):
+        """Append ``instruction`` to the first system message.
+
+        Inserts a system message when there is none. The instruction is added
+        only once, so calling this again with the same text is a no-op.
+
+        Args:
+            prepend_messages: List of message dicts
+            instruction: Plain text to append
+
+        Returns:
+            New list of message dicts
+        """
         # Make a copy to avoid modifying the original
         prepend_messages = list(prepend_messages or [])
+        if not instruction:
+            return prepend_messages
 
-        # Find existing system message and append consent instructions
-        for msg in prepend_messages:
+        for index, msg in enumerate(prepend_messages):
             if msg.get("role") == "system":
                 content = msg.get("content", "")
+                existing_text = self._extract_content_text(content)
+                if instruction in existing_text:
+                    return prepend_messages
+                separator = "\n\n" if existing_text else ""
+                text = f"{existing_text}{separator}{instruction}"
 
-                # Handle list format - modify in place (preserves format)
+                # Keep the list format, replacing the first text part
                 if (
                     isinstance(content, list)
                     and content
                     and isinstance(content[0], dict)
                 ):
-                    existing_text = self._extract_content_text(content)
-                    separator = "\n\n" if existing_text else ""
-                    content[0]["text"] = (
-                        f"{existing_text}{separator}{consent_instruction}"
-                    )
+                    content = [{**content[0], "text": text}, *content[1:]]
                 else:
-                    # String format
-                    existing_text = self._extract_content_text(content)
-                    separator = "\n\n" if existing_text else ""
-                    msg["content"] = f"{existing_text}{separator}{consent_instruction}"
+                    content = text
+                prepend_messages[index] = {**msg, "content": content}
 
                 return prepend_messages
 
@@ -107,7 +121,7 @@ class LLMProvider(models.Model):
             0,
             {
                 "role": "system",
-                "content": consent_instruction,
+                "content": instruction,
             },
         )
 

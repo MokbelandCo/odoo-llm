@@ -142,6 +142,7 @@ class MailMessage(models.Model):
                 # Update tool data with result
                 tool_data["status"] = "completed"
                 tool_data["result"] = result
+                tool_data = self._postprocess_tool_data(tool_data, thread_model)
                 self.write({"body_json": tool_data})
 
                 # Emit tool_succeeded event
@@ -152,7 +153,7 @@ class MailMessage(models.Model):
                         "tool_name": name,
                         "arguments": self._parse_tool_arguments(args) if args else {},
                         "status": "completed",
-                        "result": result,
+                        "result": tool_data.get("result"),
                     },
                 }
 
@@ -177,6 +178,18 @@ class MailMessage(models.Model):
 
         yield {"type": "message_update", "message": self.to_store_format()}
         return self
+
+    def _postprocess_tool_data(self, tool_data, thread_model=None):
+        """Hook to enrich a completed tool message before it is stored.
+
+        Called inside the tool savepoint with ``tool_data["result"]`` set.
+        Chat modules override it to register record references
+        (``llm_tool.record_reference``) found in the result.
+
+        Returns:
+            dict: the tool data to persist in ``body_json``
+        """
+        return tool_data
 
     def _validate_tool_call(self, tool_call):
         """Validate tool call structure.

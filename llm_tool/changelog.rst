@@ -1,3 +1,11 @@
+17.0.4.5.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] record_reference() helper for structured record references in tool results
+* [ADD] mail.message._postprocess_tool_data() hook
+* [IMP] provider._append_system_instruction() shared by tool consent and
+  other system instructions; no longer mutates the input messages
+
 18.0.4.1.1 (2025-12-03)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -32,7 +32,7 @@ Use cases include customer support automation, data analysis, training assistanc
 Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
-    "version": "17.0.1.6.1",
+    "version": "17.0.1.7.0",
     "depends": ["base", "mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
@@ -85,12 +85,18 @@ Contact: support@apexive.com
             "llm_thread/static/src/patches/chatter_patch.js",
             "llm_thread/static/src/patches/message_patch.js",
             "llm_thread/static/src/patches/message_patch.xml",
+            # Record links: shared opener + mail store click handling
+            "llm_thread/static/src/record_links/record_link.js",
+            "llm_thread/static/src/patches/store_service_patch.js",
             # Templates - Extensions of existing mail templates
             "llm_thread/static/src/templates/chatter_ai_button.xml",
             "llm_thread/static/src/templates/llm_chat_client_action.xml",
             # Client Actions - Following Odoo 17.0 patterns
             "llm_thread/static/src/client_actions/llm_chat_client_action.js",
             "llm_thread/static/src/client_actions/open_chatter_action.js",
+        ],
+        "web.assets_tests": [
+            "llm_thread/static/tests/tours/**/*",
         ],
     },
     "images": [
