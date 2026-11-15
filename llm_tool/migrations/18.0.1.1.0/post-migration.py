@@ -5,7 +5,8 @@ and a stored input schema that predate offset/order. Clearing a stale schema
 makes discovery rebuild it from the method signature. The same XML id is
 updated in place. This is the Odoo 18 counterpart of the 17.0.4.4.0 and
 19.0.1.1.0 migrations; the 19.0.1.1.0 step is idempotent when an 18.0.1.1.0
-database is later upgraded to 19.
+database is later upgraded to 19. Diebec is already on 18.0.4.1.1, which is
+above this script, so that database runs migrations/18.0.4.2.0 instead.
 """
 
 import logging

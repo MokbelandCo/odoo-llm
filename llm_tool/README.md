@@ -242,7 +242,7 @@ Invalid domains, operators, value types, orders and negative `limit` or `offset`
 
 ### Schema refresh
 
-The tool row is created from `data/llm_tool_data.xml` with `noupdate="1"`. Upgrade to `18.0.1.1.0` runs `migrations/18.0.1.1.0/post-migration.py`, which updates that same record and clears a stored `input_schema` that does not mention `offset`. Discovery then builds the schema from the method signature. Restart Odoo after the upgrade and refresh MCP `tools/list`. Do not create a second `odoo_record_retriever` record. If a database still has a hand-edited schema, use **Reset Input Schema** on the tool or run the module upgrade again.
+The tool row is created from `data/llm_tool_data.xml` with `noupdate="1"`. Upgrade to `18.0.4.2.0` runs `migrations/18.0.4.2.0/post-migration.py`, which updates that same record and clears a stored `input_schema` that does not mention `offset`. That version is above Diebec's installed `18.0.4.1.1`, so the script runs there, and below `19.0.1.1.0`, so a later upgrade to 19 still runs the idempotent 19 script. `18.0.1.1.0` stays for databases that never reached `18.0.4.1.1`. Discovery then builds the schema from the method signature. Restart Odoo after the upgrade and refresh MCP `tools/list`. Do not create a second `odoo_record_retriever` record. If a database still has a hand-edited schema, use **Reset Input Schema** on the tool or run the module upgrade again.
 
 ## Testing Your Tools
 
