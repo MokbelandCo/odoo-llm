@@ -10,7 +10,12 @@
         RAG tools that enable LLM assistants to search documents, cite sources, and answer
         questions using your actual company data instead of just their training.
     """,
-    "depends": ["llm_knowledge", "llm_tool", "llm_assistant"],
+    "depends": [
+        "llm_knowledge",
+        "llm_knowledge_security",
+        "llm_tool",
+        "llm_assistant",
+    ],
     "data": [
         "data/llm_tool_data.xml",
         "data/llm_assistant_data.xml",

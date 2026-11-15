@@ -51,7 +51,10 @@ class LLMResourceParser(models.Model):
 
                 # If the record has a specific rag_parse method, call it
                 if hasattr(record, "llm_get_fields"):
-                    fields = record.llm_get_fields(record)
+                    scoped_record = record.with_context(
+                        llm_security_scope=resource.security_scope
+                    )
+                    fields = scoped_record.llm_get_fields(scoped_record)
                 else:
                     # Call get_fields on the individual resource to ensure singleton
                     fields = resource.get_fields(record)

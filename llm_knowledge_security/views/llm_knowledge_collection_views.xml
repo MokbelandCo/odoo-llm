@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_llm_knowledge_collection_form_security" model="ir.ui.view">
+        <field name="name">llm.knowledge.collection.form.security</field>
+        <field name="model">llm.knowledge.collection</field>
+        <field name="inherit_id" ref="llm_knowledge.view_llm_knowledge_collection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='description']" position="after">
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="allowed_group_ids" widget="many2many_tags"/>
+                <field name="managed_key" groups="base.group_no_one"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_llm_knowledge_collection_list_security" model="ir.ui.view">
+        <field name="name">llm.knowledge.collection.list.security</field>
+        <field name="model">llm.knowledge.collection</field>
+        <field name="inherit_id" ref="llm_knowledge.view_llm_knowledge_collection_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="company_id" optional="show"/>
+                <field name="allowed_group_ids" widget="many2many_tags" optional="hide"/>
+            </field>
+        </field>
+    </record>
+</odoo>

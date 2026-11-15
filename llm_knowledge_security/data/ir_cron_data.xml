@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_llm_knowledge_sync" model="ir.cron">
+        <field name="name">LLM Knowledge: Process synchronization queue</field>
+        <field name="model_id" ref="model_llm_knowledge_sync_job"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_process()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

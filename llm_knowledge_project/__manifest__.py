@@ -1,0 +1,15 @@
+{
+    "name": "LLM Knowledge Project",
+    "summary": "Secured semantic indexing for standard Odoo projects and tasks",
+    "version": "19.0.1.0.0",
+    "category": "Services/Project",
+    "author": "Mokbel and Co.",
+    "website": "https://github.com/MokbelandCo/odoo-llm",
+    "license": "LGPL-3",
+    "depends": ["project", "llm_knowledge_security"],
+    "data": [],
+    "post_init_hook": "post_init_hook",
+    "installable": True,
+    "application": False,
+    "auto_install": False,
+}

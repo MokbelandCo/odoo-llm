@@ -12,8 +12,8 @@ class LLMResource(models.Model):
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "id desc"
     _unique_resource_reference = models.Constraint(
-        "UNIQUE(model_id, res_id)",
-        "A resource already exists for this record. Please use the existing resource.",
+        "UNIQUE(model_id, res_id, security_scope)",
+        "A resource already exists for this record and security scope.",
     )
 
     name = fields.Char(
@@ -41,6 +41,18 @@ class LLMResource(models.Model):
         required=True,
         tracking=True,
         help="The ID of the referenced record",
+    )
+    owner_id = fields.Many2one(
+        "res.users",
+        default=lambda self: self.env.user,
+        index=True,
+        readonly=True,
+    )
+    security_scope = fields.Char(
+        default="default",
+        required=True,
+        index=True,
+        help="Integration-defined content scope used by live source authorization.",
     )
     content = fields.Text(
         string="Content",
