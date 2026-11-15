@@ -1,3 +1,9 @@
+18.0.4.2.0 (2026-11-15)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [IMP] Record retriever contract refresh runs above the installed Diebec version 18.0.4.1.1
+* [IMP] Migration clears a stale ``odoo_record_retriever`` input schema and republishes offset and order on the same tool row
+
 18.0.4.1.1 (2025-12-03)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
