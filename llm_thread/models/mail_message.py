@@ -20,21 +20,32 @@ class MailMessage(models.Model):
     def _message_fetch(
         self,
         domain,
-        *,
-        thread=None,
         search_term=None,
-        is_notification=None,
         before=None,
         after=None,
         around=None,
         limit=30,
+        *,
+        thread=None,
+        is_notification=None,
     ):
         """Override to filter only LLM messages for llm.thread model.
 
-        For LLM threads, we only want to display messages that have an llm_role
-        (user, assistant, tool), not system notifications or other message types
-        that would clutter the AI conversation interface.
+        Odoo 18's parent accepts domain, search_term, before, after, around and
+        limit, including as positional arguments. ``thread`` and
+        ``is_notification`` are the Odoo 19 keywords. They are accepted so a
+        caller that still passes them does not crash, and they are not
+        forwarded: Odoo 18 raises TypeError on either one. ``thread`` is used
+        locally when the domain does not identify the model. ``is_notification``
+        has no Odoo 18 equivalent and is ignored.
+
+        For LLM threads, only messages with an llm_role are returned. Ordinary
+        chatter is not given that filter.
         """
+        # Odoo 18 does not filter on this flag. Keep the parameter so it is
+        # not treated as an unexpected keyword, and do not forward it.
+        del is_notification
+
         is_llm_thread = bool(thread) and thread._name == "llm.thread"
         if not is_llm_thread and domain:
             # The thread may only be identifiable through the domain itself.
@@ -52,9 +63,7 @@ class MailMessage(models.Model):
 
         return super()._message_fetch(
             domain,
-            thread=thread,
             search_term=search_term,
-            is_notification=is_notification,
             before=before,
             after=after,
             around=around,

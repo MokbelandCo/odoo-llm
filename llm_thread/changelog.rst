@@ -1,3 +1,8 @@
+18.0.1.1.2 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] mail.message._message_fetch follows the Odoo 18 contract. thread and is_notification are no longer forwarded to the parent, so ordinary chatter and LLM threads load again.
+
 18.0.1.1.0 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
