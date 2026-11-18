@@ -1,3 +1,10 @@
+18.0.1.1.3 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] LLM threads serialize through the Odoo 18 mail Store API, so the web client loads for users with several AI chats.
+* [FIX] Header settings, the systray popup and the LLM composer call Odoo 18 frontend APIs instead of Odoo 19 ones.
+* [ADD] Store regression tests and a systray popup header tour.
+
 18.0.1.1.2 (2026-11-16)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
