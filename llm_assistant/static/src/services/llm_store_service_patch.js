@@ -81,7 +81,7 @@ patch(llmStoreService, {
           }
 
           // Reuse existing fetchData pattern to refresh thread data
-          await targetThread.fetchThreadData([
+          await targetThread.fetchData([
             "assistant_id",
             "provider_id",
             "model_id",
