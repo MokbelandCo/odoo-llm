@@ -87,6 +87,86 @@ class TestMcpToolExposure(TransactionCase):
         with self.assertRaises(UserError):
             self.Tool.execute_mcp_tool({"name": "mcp_exposure_tool_b", "arguments": {}})
 
+    def test_selected_mode_rejects_cached_executor_call(self):
+        """tools/call checks exposure by name, including a cached executor schema."""
+        executor = self.env.ref("llm_tool.llm_tool_odoo_model_method_executor")
+        executor.active = True
+        self.config.write(
+            {
+                "tool_mode": "selected",
+                "tool_ids": [(6, 0, [self.tool_a.id])],
+            }
+        )
+        listed = {tool.name for tool in self.Tool.get_mcp_tools_list().tools}
+        self.assertNotIn(executor.name, listed)
+        self.assertIn("mcp_exposure_tool_a", listed)
+
+        with self.assertRaises(UserError):
+            self.Tool.execute_mcp_tool(
+                {
+                    "name": executor.name,
+                    "arguments": {
+                        "model": "res.partner",
+                        "method": "search",
+                        "args": ["[]"],
+                    },
+                }
+            )
+
+    def test_all_tools_and_named_endpoint_keep_independent_exposure(self):
+        executor = self.env.ref("llm_tool.llm_tool_odoo_model_method_executor")
+        executor.active = True
+        named = self.Config.create(
+            {
+                "name": "named_exposure_config",
+                "version": "1.0.0",
+                "latest_protocol_version": "2025-11-25",
+                "active": True,
+                "endpoint_path": "/mcp/exposure",
+                "mode": "stateful",
+                "tool_mode": "all",
+                "tool_ids": [(6, 0, [self.tool_a.id])],
+            }
+        )
+        self.config.write(
+            {
+                "tool_mode": "selected",
+                "tool_ids": [(6, 0, [self.tool_a.id])],
+            }
+        )
+
+        default_names = {
+            tool.name
+            for tool in self.Tool.with_context(
+                mcp_server_config_id=self.config.id
+            ).get_mcp_tools_list().tools
+        }
+        named_names = {
+            tool.name
+            for tool in self.Tool.with_context(
+                mcp_server_config_id=named.id
+            ).get_mcp_tools_list().tools
+        }
+        self.assertNotIn(executor.name, default_names)
+        self.assertIn(executor.name, named_names)
+        self.assertEqual(named.tool_mode, "all")
+        self.assertFalse(self.config.is_tool_exposed(executor))
+        self.assertTrue(named.is_tool_exposed(executor))
+
+        with self.assertRaises(UserError):
+            self.Tool.with_context(
+                mcp_server_config_id=self.config.id
+            ).execute_mcp_tool(
+                {
+                    "name": executor.name,
+                    "arguments": {
+                        "model": "res.partner",
+                        "method": "search",
+                    },
+                }
+            )
+        named.unlink()
+
     def test_multiple_configs_can_be_active_with_independent_tools(self):
         extra = self.Config.create(
             {

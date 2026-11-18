@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<odoo>
-    <!-- Default MCP Server Configuration -->
+<odoo noupdate="1">
+    <!--
+        Default MCP server configuration for a fresh database.
+        noupdate keeps later module upgrades from resetting administrator
+        settings. Existing databases are marked noupdate by
+        migrations/18.0.1.6.1/pre-migrate.py before this file reloads.
+    -->
     <record id="default_mcp_server_config" model="llm.mcp.server.config">
         <field name="name">odoo_llm_mcp_server</field>
         <field name="version">1.0.0</field>

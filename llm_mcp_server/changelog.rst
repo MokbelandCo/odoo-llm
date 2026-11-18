@@ -1,3 +1,17 @@
+18.0.1.6.1 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Module upgrade keeps administrator MCP server settings. The default
+  server record is ``noupdate`` (tool exposure, tool list, endpoint path,
+  authentication, and external URL).
+* [MIG] Existing databases mark ``llm_mcp_server.default_mcp_server_config``
+  ``noupdate`` before XML data reloads. The migration does not rewrite server
+  settings and does not treat a nonempty tool list as Selected Tools.
+* [DOC] An earlier upgrade that already restored All Tools and cleared the
+  external URL stays that way. An administrator confirms and restores the
+  intended settings. The ``noupdate`` flag only stops later upgrades from
+  applying the XML defaults again.
+
 18.0.1.6.0 (2026-09-14)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
