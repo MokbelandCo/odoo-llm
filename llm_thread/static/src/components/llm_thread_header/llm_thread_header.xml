@@ -2,13 +2,13 @@
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMThreadHeader.settings">
         <!-- Provider Dropdown -->
-        <Dropdown>
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle">
+        <Dropdown togglerClass="'btn btn-sm btn-outline-secondary'" showCaret="true">
+            <t t-set-slot="toggler">
                 <i class="fa fa-cloud me-1" />
                 <span t-if="currentProvider" t-esc="currentProvider.name" />
                 <span t-else="">Select Provider</span>
-            </button>
-            <t t-set-slot="content">
+            </t>
+            <t t-set-slot="default">
                 <t
           t-foreach="availableProviders"
           t-as="provider"
@@ -31,13 +31,17 @@
         </Dropdown>
 
         <!-- Model Dropdown -->
-        <Dropdown t-if="currentProvider">
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle">
+        <Dropdown
+            t-if="currentProvider"
+            togglerClass="'btn btn-sm btn-outline-secondary'"
+            showCaret="true"
+        >
+            <t t-set-slot="toggler">
                 <i class="fa fa-cube me-1" />
                 <span t-if="currentModel" t-esc="currentModel.name" />
                 <span t-else="">Select Model</span>
-            </button>
-            <t t-set-slot="content">
+            </t>
+            <t t-set-slot="default">
                 <div class="px-3 py-2">
                     <div class="input-group input-group-sm">
                         <input
@@ -91,51 +95,55 @@
         </Dropdown>
 
         <!-- Tools Dropdown -->
-        <div class="o-llm-thread-header-tools">
-            <Dropdown
-                t-if="compact or availableTools.length > 0"
-                menuClass="compact ? 'o-llm-thread-header-tools-menu' : ''"
-            >
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle">
-                    <i class="fa fa-wrench me-1" />
-                    Tools
-                    <t t-if="currentTools.length > 0">
-                        (<t t-esc="currentTools.length" />)
-                    </t>
-                </button>
-                <t t-set-slot="content">
-                    <div class="o-llm-thread-header-tools-list">
-                        <t t-foreach="availableTools" t-as="tool" t-key="tool.id">
-                            <div class="dropdown-item">
-                                <div class="form-check">
-                                    <input
-                    type="checkbox"
-                    class="form-check-input"
-                    t-att-id="'tool_' + tool.id"
-                    t-att-checked="isToolSelected(tool)"
-                    t-att-disabled="state.isLoadingUpdate"
-                    t-on-change="() => this.toggleTool(tool)"
-                  />
-                                    <label
-                    class="form-check-label w-100"
-                    t-att-for="'tool_' + tool.id"
-                    t-att-class="{'text-muted': state.isLoadingUpdate}"
-                  >
-                                        <span t-esc="tool.name" />
-                                    </label>
-                                </div>
-                            </div>
-                        </t>
-                        <div
-              t-if="availableTools.length === 0"
-              class="dropdown-item-text text-muted"
-            >
-                            No tools available
-                        </div>
-                    </div>
+        <!-- Odoo 17 only lets a nested Dropdown open from the parent menu when it
+             is a direct child of an .o_dropdown_container, so the Tools class sits
+             on the Dropdown root instead of a wrapper div. -->
+        <Dropdown
+            t-if="compact or availableTools.length > 0"
+            class="'o-llm-thread-header-tools'"
+            menuClass="compact ? 'o-llm-thread-header-tools-menu' : ''"
+            togglerClass="'btn btn-sm btn-outline-secondary'"
+            showCaret="true"
+        >
+            <t t-set-slot="toggler">
+                <i class="fa fa-wrench me-1" />
+                Tools
+                <t t-if="currentTools.length > 0">
+                    (<t t-esc="currentTools.length" />)
                 </t>
-            </Dropdown>
-        </div>
+            </t>
+            <t t-set-slot="default">
+                <div class="o-llm-thread-header-tools-list">
+                    <t t-foreach="availableTools" t-as="tool" t-key="tool.id">
+                        <div class="dropdown-item">
+                            <div class="form-check">
+                                <input
+                type="checkbox"
+                class="form-check-input"
+                t-att-id="'tool_' + tool.id"
+                t-att-checked="isToolSelected(tool)"
+                t-att-disabled="state.isLoadingUpdate"
+                t-on-change="() => this.toggleTool(tool)"
+              />
+                                <label
+                class="form-check-label w-100"
+                t-att-for="'tool_' + tool.id"
+                t-att-class="{'text-muted': state.isLoadingUpdate}"
+              >
+                                    <span t-esc="tool.name" />
+                                </label>
+                            </div>
+                        </div>
+                    </t>
+                    <div
+          t-if="availableTools.length === 0"
+          class="dropdown-item-text text-muted"
+        >
+                        No tools available
+                    </div>
+                </div>
+            </t>
+        </Dropdown>
     </t>
 
     <t t-name="llm_thread.LLMThreadHeader">
@@ -195,18 +203,21 @@
                 </t>
 
                 <t t-if="compact">
-                    <Dropdown menuClass="'o-llm-ThreadHeader-moreMenu'">
-                        <button
-              class="o-llm-ThreadHeader-more btn btn-sm btn-outline-secondary"
-              type="button"
-              title="Chat settings"
-              aria-label="Chat settings"
-            >
-                            <i class="fa fa-ellipsis-h" />
-                        </button>
-                        <t t-set-slot="content">
+                    <Dropdown
+            menuClass="'o-llm-ThreadHeader-moreMenu'"
+            togglerClass="'o-llm-ThreadHeader-more btn btn-sm btn-outline-secondary'"
+          >
+                        <t t-set-slot="toggler">
+                            <i
+                class="fa fa-ellipsis-h"
+                role="img"
+                title="Chat settings"
+                aria-label="Chat settings"
+              />
+                        </t>
+                        <t t-set-slot="default">
                             <div
-                class="o-llm-thread-header-settings o-llm-thread-header-settings--compact p-2 d-flex flex-column gap-2"
+                class="o-llm-thread-header-settings o-llm-thread-header-settings--compact o_dropdown_container p-2 d-flex flex-column gap-2"
               >
                                 <t t-call="llm_thread.LLMThreadHeader.settings" />
                             </div>

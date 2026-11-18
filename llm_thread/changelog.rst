@@ -1,3 +1,11 @@
+17.0.1.8.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Chat header provider, model and Tools menus use the Odoo 17
+  ``Dropdown`` API (``toggler``/``default`` slots, ``togglerClass``), so the
+  full-screen toggles show their labels and the popup shows one ellipsis
+  with a working settings menu (same layout as 19.0)
+
 17.0.1.7.0 (2026-11-11)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

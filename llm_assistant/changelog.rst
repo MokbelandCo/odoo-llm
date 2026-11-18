@@ -1,3 +1,9 @@
+17.0.1.7.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Chat header Assistant menu uses the Odoo 17 ``Dropdown`` API so its
+  toggle shows the assistant name instead of a blank button
+
 18.0.1.5.4 (2025-12-02)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

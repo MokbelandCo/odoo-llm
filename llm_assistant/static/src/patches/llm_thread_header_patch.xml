@@ -6,21 +6,23 @@
     t-inherit-mode="extension"
   >
         <xpath
-      expr="//div[hasclass('o-llm-thread-header-tools')]"
+      expr="//Dropdown[contains(@class, 'o-llm-thread-header-tools')]"
       position="after"
     >
-            <Dropdown t-if="compact or availableAssistants.length > 0 or currentAssistant">
-                <button
-          class="btn btn-sm btn-outline-secondary dropdown-toggle"
-        >
+            <Dropdown
+        t-if="compact or availableAssistants.length > 0 or currentAssistant"
+        togglerClass="'btn btn-sm btn-outline-secondary'"
+        showCaret="true"
+      >
+                <t t-set-slot="toggler">
                     <i class="fa fa-user me-1" />
                     <span
             t-if="currentAssistant"
             t-esc="currentAssistant.name"
           />
                     <span t-else="">No Assistant</span>
-                </button>
-                <t t-set-slot="content">
+                </t>
+                <t t-set-slot="default">
                     <t t-if="currentAssistant">
                         <DropdownItem
               onSelected="() => this.clearAssistant()"

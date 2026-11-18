@@ -89,6 +89,15 @@
       justify-content: space-between;
       text-align: left;
     }
+
+    // Odoo 17 renders nested toggles as .dropdown-item (nowrap) with an
+    // absolutely positioned caret; keep labels left and let long ones wrap.
+    button.dropdown-item {
+      justify-content: flex-start;
+      padding-right: 1.75rem;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   }
 
   .o-llm-thread-header-tools-list {
