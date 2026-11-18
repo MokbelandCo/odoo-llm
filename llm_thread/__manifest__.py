@@ -93,6 +93,9 @@ Contact: support@apexive.com
         "web.assets_unit_tests": [
             "llm_thread/static/tests/**/*",
         ],
+        "web.assets_tests": [
+            "llm_thread/static/tests/tours/**/*",
+        ],
     },
     "images": [
         "static/description/banner.jpeg",
