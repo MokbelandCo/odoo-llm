@@ -49,9 +49,7 @@ class TestThreadStore(TransactionCase):
             self.assertIn(thread.id, threads)
             self.assertEqual(threads[thread.id]["name"], thread.name)
             self.assertEqual(threads[thread.id]["model_id"]["id"], self.model.id)
-            self.assertEqual(
-                threads[thread.id]["provider_id"]["id"], self.provider.id
-            )
+            self.assertEqual(threads[thread.id]["provider_id"]["id"], self.provider.id)
 
     def test_thread_data_request_list(self):
         thread = self.threads[0]

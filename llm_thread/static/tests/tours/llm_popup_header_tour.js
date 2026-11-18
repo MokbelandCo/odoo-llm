@@ -30,15 +30,15 @@ registry.category("web_tour.tours").add("llm_thread_popup_header_tour", {
       run: "click",
     },
     {
-      trigger:
-        ".o-llm-ChatWindow .o-llm-thread-header:not(:has(.fa-spinner))",
+      trigger: ".o-llm-ChatWindow .o-llm-thread-header:not(:has(.fa-spinner))",
     },
     {
       trigger: ".o-llm-ChatWindow .o-llm-ThreadHeader-more",
       run: "click",
     },
     {
-      trigger: ".o-llm-ThreadHeader-moreMenu button:contains('tour-model-beta')",
+      trigger:
+        ".o-llm-ThreadHeader-moreMenu button:contains('tour-model-beta')",
     },
   ],
 });
