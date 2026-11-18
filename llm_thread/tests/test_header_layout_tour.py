@@ -32,7 +32,8 @@ class TestHeaderLayoutTour(HttpCase):
         env["llm.thread"].search([("user_id", "=", admin.id)]).unlink()
         thread = env["llm.thread"].create(
             {
-                "name": "Header Layout Tour Thread",
+                "name": "Header Layout Tour Thread with a deliberately long title"
+                " for the popup header",
                 "provider_id": provider.id,
                 "model_id": model.id,
                 "user_id": admin.id,

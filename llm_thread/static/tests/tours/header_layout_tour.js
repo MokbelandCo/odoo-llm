@@ -2,7 +2,8 @@
 
 import { registry } from "@web/core/registry";
 
-const THREAD_NAME = "Header Layout Tour Thread";
+const THREAD_NAME =
+  "Header Layout Tour Thread with a deliberately long title for the popup header";
 const PROVIDER_NAME = "Header Tour Provider";
 const MODEL_NAME = "header-tour-model";
 const TOOL_NAME = "header_tour_tool";
@@ -76,6 +77,11 @@ registry.category("web_tour.tours").add("llm_thread_header_layout_tour", {
         const ellipses = [...header.querySelectorAll(".fa-ellipsis-h")];
         if (ellipses.length !== 1 || !visible(ellipses[0]) || ellipses[0].closest(".dropdown-menu")) {
           throw new Error("Popup header must show one visible ellipsis toggle");
+        }
+        const popup = document.querySelector(POPUP).getBoundingClientRect();
+        const more = document.querySelector(MORE).getBoundingClientRect();
+        if (more.left < popup.left || more.right > popup.right) {
+          throw new Error("A long thread title pushed the ellipsis out of the popup");
         }
         if (
           header.querySelector(

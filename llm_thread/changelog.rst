@@ -5,6 +5,8 @@
   ``Dropdown`` API (``toggler``/``default`` slots, ``togglerClass``), so the
   full-screen toggles show their labels and the popup shows one ellipsis
   with a working settings menu (same layout as 19.0)
+* [FIX] Popup: a long thread title no longer widens the header past the
+  window and hides the settings ellipsis
 
 17.0.1.7.0 (2026-11-11)
 ~~~~~~~~~~~~~~~~~~~~~~~
