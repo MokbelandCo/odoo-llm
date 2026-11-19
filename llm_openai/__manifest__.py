@@ -17,6 +17,11 @@
         "data/llm_publisher.xml",
         "views/llm_model_views.xml",
     ],
+    "assets": {
+        "web.assets_tests": [
+            "llm_openai/static/tests/tours/**/*",
+        ],
+    },
     "images": [
         "static/description/banner.jpeg",
     ],
