@@ -37,6 +37,7 @@ class TestHeaderLayoutTour(HttpCase):
                 "provider_id": provider.id,
                 "model_id": model.id,
                 "user_id": admin.id,
+                "tool_ids": [(6, 0, [])],
             }
         )
 

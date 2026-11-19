@@ -117,7 +117,10 @@ class LLMAssistant(models.Model):
     tool_ids = fields.Many2many(
         "llm.tool",
         string="Preferred Tools",
-        help="Tools that this assistant can use",
+        default=lambda self: self.env["llm.tool"]._get_default_optional_tools(),
+        help="Optional tools this assistant selects on its threads. New "
+        "assistants start with the active Default tools. Active Always Include "
+        "tools are added to every request and do not need to be selected here.",
         tracking=True,
     )
 

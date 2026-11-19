@@ -24,6 +24,16 @@ class LLMThread(models.Model):
         help="Prompt to use for workflow",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Threads created for an assistant start with its tools, not the
+        global Default tools, unless ``tool_ids`` is given explicitly."""
+        for vals in vals_list:
+            if vals.get("assistant_id") and "tool_ids" not in vals:
+                assistant = self.env["llm.assistant"].browse(vals["assistant_id"])
+                vals["tool_ids"] = [(6, 0, assistant.tool_ids.ids)]
+        return super().create(vals_list)
+
     @api.onchange("assistant_id")
     def _onchange_assistant_id(self):
         """Update provider, model and tools when assistant changes"""
@@ -330,7 +340,7 @@ class LLMThread(models.Model):
         """Prepare chat kwargs for provider. Can be overridden by extensions."""
         return {
             "messages": message_history,
-            "tools": self.tool_ids,
+            "tools": self._get_effective_tools(),
             "stream": use_streaming,
             "prepend_messages": self.get_prepend_messages(),
         }

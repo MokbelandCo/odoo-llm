@@ -128,14 +128,11 @@ export class LLMThreadHeader extends Component {
     const toolIds = this.activeThread.tool_ids || [];
     if (!toolIds.length) return [];
 
-    // Handle different formats: array of objects or array of IDs
+    // Only count selectable tools: inactive and Always Include ones stay hidden.
     return toolIds
-      .map((tool) => {
-        if (typeof tool === "object" && tool.id) {
-          return this.llmStore.llmTools?.get(tool.id) || tool;
-        }
-        return this.llmStore.llmTools?.get(tool);
-      })
+      .map((tool) =>
+        this.llmStore.llmTools?.get(typeof tool === "object" ? tool.id : tool)
+      )
       .filter(Boolean);
   }
 

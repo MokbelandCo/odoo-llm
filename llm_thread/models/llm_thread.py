@@ -144,7 +144,10 @@ class LLMThread(models.Model):
     tool_ids = fields.Many2many(
         "llm.tool",
         string="Available Tools",
-        help="Tools that can be used by the LLM in this thread",
+        default=lambda self: self.env["llm.tool"]._get_default_optional_tools(),
+        help="Optional tools selected for this thread. New threads start with "
+        "the active Default tools. Active Always Include tools are added to "
+        "every request and do not need to be selected here.",
     )
 
     attachment_ids = fields.Many2many(
@@ -235,6 +238,31 @@ class LLMThread(models.Model):
                 record.name = f"New Chat #{record.id}"
 
         return records
+
+    # ============================================================================
+    # TOOL SELECTION
+    # ============================================================================
+
+    def _get_always_include_tools(self):
+        """Always Include tools added to this thread's requests.
+
+        Override to return an empty recordset for threads that must stay
+        limited to a fixed tool catalog (portal sessions, automation runs).
+        """
+        self.ensure_one()
+        return self.env["llm.tool"]._get_always_include_tools()
+
+    def _get_effective_tools(self):
+        """Tools offered to the provider and allowed to run for this thread.
+
+        Current active Always Include tools plus the active tools selected in
+        ``tool_ids``. Inactive tools never qualify, whatever ids are stored.
+        Both parts are read as the thread's user, so llm.tool record rules
+        apply. Resolved on every request, so flag changes reach open threads.
+        """
+        self.ensure_one()
+        selected = self.tool_ids.filtered("active")
+        return selected | self._get_always_include_tools()
 
     @api.depends("message_ids.attachment_ids")
     def _compute_attachment_ids(self):

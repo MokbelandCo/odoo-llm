@@ -26,7 +26,7 @@ Key Features:
 Use cases include creating specialized assistants for customer support, data analysis, training assistance, and more.
     """,
     "category": "Productivity, Discuss",
-    "version": "17.0.1.7.0",
+    "version": "17.0.1.8.0",
     "depends": [
         "base",
         "mail",
@@ -68,6 +68,9 @@ Use cases include creating specialized assistants for customer support, data ana
             # Component patches
             "llm_assistant/static/src/patches/llm_thread_header_patch.js",
             "llm_assistant/static/src/patches/llm_thread_header_patch.xml",
+        ],
+        "web.assets_tests": [
+            "llm_assistant/static/tests/tours/**/*",
         ],
     },
     "license": "LGPL-3",

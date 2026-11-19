@@ -92,7 +92,20 @@ class LLMTool(models.Model):
     # Default tool flag
     default = fields.Boolean(
         default=False,
-        help="Set to true if this is a default tool to be included in all LLM requests",
+        tracking=True,
+        help="Preselect this tool in new chats and new assistants. Users can "
+        "remove it from a chat or an assistant; later changes to this flag "
+        "do not change chats or assistants that already exist.",
+    )
+
+    always_include = fields.Boolean(
+        string="Always Include",
+        default=False,
+        tracking=True,
+        help="Add this tool to every chat request while it is active, including "
+        "chats and assistants that already exist. It is hidden from the tool "
+        "selectors and cannot be removed from a chat. Takes precedence over "
+        "Default.",
     )
 
     # Auto-update flag for function tools
@@ -144,6 +157,25 @@ class LLMTool(models.Model):
         return [
             ("function", "Function"),
         ]
+
+    # ``active`` is in both domains so inactive tools stay out even when the
+    # caller's context carries ``active_test=False``. The search runs as the
+    # current user, so llm.tool record rules apply.
+    @api.model
+    def _get_default_optional_tools(self):
+        """Active Default tools to preselect in new chats and assistants."""
+        return self.search(
+            [
+                ("active", "=", True),
+                ("default", "=", True),
+                ("always_include", "=", False),
+            ]
+        )
+
+    @api.model
+    def _get_always_include_tools(self):
+        """Active Always Include tools added to every chat request."""
+        return self.search([("active", "=", True), ("always_include", "=", True)])
 
     def get_pydantic_model_from_signature(self, method):
         """Create a Pydantic model from a method signature"""

@@ -1,7 +1,7 @@
 import json
 import logging
 
-from odoo import models
+from odoo import api, models
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -11,6 +11,13 @@ class MailMessage(models.Model):
     """Extension of mail.message to handle tool operations."""
 
     _inherit = "mail.message"
+
+    @api.model
+    def _get_thread_tools(self, thread_model):
+        """Tools the thread may call right now, as sent to the provider."""
+        if hasattr(thread_model, "_get_effective_tools"):
+            return thread_model._get_effective_tools()
+        return thread_model.tool_ids.filtered("active")
 
     def get_tool_calls(self):
         """Get tool calls from assistant message body_json."""
@@ -42,7 +49,8 @@ class MailMessage(models.Model):
 
         # Validate tool exists in thread if thread model is provided
         if thread_model and hasattr(thread_model, "tool_ids"):
-            if not thread_model.tool_ids.filtered(lambda t: t.name == tool_name):
+            tools = self._get_thread_tools(thread_model)
+            if not tools.filtered(lambda t: t.name == tool_name):
                 raise UserError(f"Tool '{tool_name}' not found in thread")
 
         # Validate and parse arguments
@@ -258,7 +266,9 @@ class MailMessage(models.Model):
         if not hasattr(thread_model, "tool_ids"):
             raise UserError(f"Thread model {thread_model._name} does not support tools")
 
-        tool = thread_model.tool_ids.filtered(lambda t: t.name == tool_name)[:1]
+        tool = self._get_thread_tools(thread_model).filtered(
+            lambda t: t.name == tool_name
+        )[:1]
         if not tool:
             raise UserError(f"Tool '{tool_name}' not found in thread")
 

@@ -124,7 +124,7 @@ class LLMThread(models.Model):
         for thread in self:
             if thread.provider_id.service == LETTA_SERVICE and thread.external_id:
                 thread.provider_id.letta_sync_agent_tools(
-                    thread.external_id, thread.tool_ids
+                    thread.external_id, thread._get_effective_tools()
                 )
 
     def _update_or_create_agent(self, thread):
@@ -209,8 +209,9 @@ class LLMThread(models.Model):
         agent_id = agent.id
 
         # Sync tools after creation if thread has any
-        if thread.tool_ids:
-            thread.provider_id.letta_sync_agent_tools(agent_id, thread.tool_ids)
+        tools = thread._get_effective_tools()
+        if tools:
+            thread.provider_id.letta_sync_agent_tools(agent_id, tools)
 
         return agent_id
 
@@ -388,7 +389,9 @@ class LLMThread(models.Model):
                 )
             )
 
-        self.provider_id.letta_sync_agent_tools(self.external_id, self.tool_ids)
+        self.provider_id.letta_sync_agent_tools(
+            self.external_id, self._get_effective_tools()
+        )
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
