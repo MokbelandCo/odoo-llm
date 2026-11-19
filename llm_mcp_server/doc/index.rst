@@ -263,6 +263,17 @@ Test your server:
 Troubleshooting
 ---------------
 
+**Module upgrade reset MCP server settings?**
+
+From 17.0.1.7.1, the default MCP server record is ``noupdate``. Upgrading the module keeps the administrator's tool exposure, tool list, endpoint path, authentication policy, OAuth and API-key settings, and external URL. A nonempty tool list is left as stored: All Tools stays All Tools.
+
+If an earlier upgrade already switched the endpoint back to All Tools and cleared the external URL, restore those values in Odoo. The ``noupdate`` flag only stops later upgrades from applying the XML defaults again.
+
+1. Open **LLM → Configuration → MCP Server**.
+2. On the default ``/mcp`` record, and on every other endpoint you use, set **Exposed Tools** to **Selected Tools** and keep only the tools that should be callable. Use **All Tools** only when every active tool, including ``odoo_model_method_executor``, should be callable.
+3. Restore **External URL**, **Endpoint Path**, and the authentication settings.
+4. Confirm ``tools/list`` omits excluded tools. A client that still has the old tool definition can call ``tools/call``; the server rejects a tool the endpoint does not expose.
+
 **No tools showing up?**
 
 - Check that tools are active in Odoo (LLM → Tools)
