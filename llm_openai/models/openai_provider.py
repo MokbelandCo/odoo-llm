@@ -3,11 +3,21 @@ import json
 import logging
 import math
 import os
+import re
 import uuid
+from urllib.parse import urlparse
 
-from openai import AuthenticationError, BadRequestError, OpenAI, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    OpenAI,
+    RateLimitError,
+)
 
-from odoo import _, api, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.llm.models.llm_transcription import (
@@ -17,9 +27,41 @@ from odoo.addons.llm.models.llm_transcription import (
     get_live_session,
 )
 
+from ..utils.openai_capabilities import (
+    CHAT_COMPLETIONS,
+    ENDPOINT_PATHS,
+    ENDPOINTS,
+    KIND_AUDIO_CHAT,
+    KIND_COMPLETION,
+    KIND_EMBEDDING,
+    KIND_IMAGE,
+    KIND_LABELS,
+    KIND_MODERATION,
+    KIND_REALTIME,
+    KIND_SEARCH,
+    KIND_SPEECH,
+    KIND_TRANSCRIPTION,
+    RESPONSES,
+    SAMPLING_PARAMS,
+    VERBOSITY_VALUES,
+    lookup,
+)
 from ..utils.openai_message_validator import OpenAIMessageValidator
+from ..utils.openai_responses import (
+    OpenAIChatError,
+    chat_tool_choice_to_responses,
+    chat_tool_to_responses,
+    messages_to_input,
+    normalize_response,
+    redact,
+    response_chunks,
+    stream_chunks,
+    strip_replay_state,
+)
 
 _logger = logging.getLogger(__name__)
+
+OPENAI_TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 OPENAI_TO_ODOO_STATE_MAPPING = {
     "validating_files": "validating",
@@ -173,7 +215,11 @@ class LLMProvider(models.Model):
             stream: Whether to stream the response
             tools: llm.tool recordset of available tools
             prepend_messages: List of pre-formatted message dicts to prepend
-            **kwargs: Additional OpenAI-specific parameters (e.g., tool_choice)
+            **kwargs: Additional OpenAI-specific parameters (``tool_choice``,
+                ``openai_endpoint``, ``reasoning_effort``, ``max_output_tokens``
+                / ``max_tokens``, ``verbosity``, ``temperature``, ``top_p``,
+                ``parallel_tool_calls``). Unsupported ones are omitted per
+                model; invalid values raise :class:`OpenAIChatError`.
 
         Returns:
             Generator yielding response chunks if streaming, else complete response
@@ -186,32 +232,531 @@ class LLMProvider(models.Model):
         if prepend_messages:
             formatted_messages = prepend_messages + formatted_messages
 
-        # Build params
+        if not self._openai_uses_capability_routing():
+            return self._openai_chat_legacy(
+                model, formatted_messages, stream, tools, kwargs
+            )
+
+        capabilities = model._openai_capabilities()
+        options = self._openai_chat_options(model, kwargs)
+        formatted_tools = self._openai_formatted_tools(tools, model)
+        endpoint = self._openai_select_endpoint(
+            capabilities,
+            options.pop("endpoint"),
+            bool(formatted_tools),
+            options.get("reasoning_effort"),
+        )
+        if endpoint == RESPONSES:
+            return self._openai_responses_chat(
+                model, capabilities, formatted_messages, stream,
+                formatted_tools, options, kwargs,
+            )
+        return self._openai_completions_chat(
+            model, capabilities, formatted_messages, stream,
+            formatted_tools, options, kwargs,
+        )
+
+    def _openai_chat_legacy(self, model, formatted_messages, stream, tools, kwargs):
+        """Chat Completions as before mh-1312, for OpenAI-compatible hosts.
+
+        Mistral and self-hosted ``api_base`` servers speak Chat Completions
+        but do not follow OpenAI's per-model contract, so nothing is filtered.
+        """
         params = {
             "model": model.name,
             "stream": stream,
-            "messages": formatted_messages,
+            "messages": strip_replay_state(formatted_messages),
         }
-
-        # Add tools if provided (OpenAI-specific formatting)
         if tools:
             formatted_tools = self.format_tools(tools)
             if formatted_tools:
                 params["tools"] = formatted_tools
-                # OpenAI-specific: tool_choice param (Ollama doesn't support this)
                 params["tool_choice"] = kwargs.get("tool_choice", "auto")
 
-        # Make the API call
         response = self.client.chat.completions.create(**params)
 
-        # Process the response based on streaming mode
         if not stream:
             return self._openai_process_non_streaming_response(response)
         return self._openai_process_streaming_response(response)
 
-    def _openai_process_non_streaming_response(self, response):
-        """Processes OpenAI non-streamed response and returns ONE standardized dict."""
+    # ------------------------------------------------------------------
+    # Capability routing (official OpenAI API)
+    # ------------------------------------------------------------------
+    def _openai_uses_capability_routing(self):
+        """Per-model routing applies to OpenAI's own API only."""
+        if self.service != "openai":
+            return False
+        if not self.api_base:
+            return True
+        host = (urlparse(self.api_base).hostname or "").lower()
+        return host == "api.openai.com" or host.endswith(".api.openai.com")
+
+    def _openai_chat_options(self, model, kwargs):
+        """Model-level settings, overridden by explicit call arguments."""
+        options = {
+            "endpoint": model.openai_endpoint or "auto",
+            "reasoning_effort": model.openai_reasoning_effort or None,
+            "max_output_tokens": model.openai_max_output_tokens or None,
+            "verbosity": model.openai_verbosity or None,
+        }
+        aliases = {
+            "openai_endpoint": "endpoint",
+            "reasoning_effort": "reasoning_effort",
+            "max_output_tokens": "max_output_tokens",
+            "max_completion_tokens": "max_output_tokens",
+            "max_tokens": "max_output_tokens",
+            "verbosity": "verbosity",
+            "parallel_tool_calls": "parallel_tool_calls",
+        }
+        for key, target in aliases.items():
+            if kwargs.get(key) is not None:
+                options[target] = kwargs[key]
+        for key in SAMPLING_PARAMS:
+            if kwargs.get(key) is not None:
+                options[key] = kwargs[key]
+        return options
+
+    def _openai_formatted_tools(self, tools, model):
+        """Format and validate tools. A tool that cannot be sent is an error."""
+        if not tools:
+            return []
+        formatted = self.format_tools(tools)
+        result = []
+        for tool, spec in zip(tools, formatted):
+            name = ((spec or {}).get("function") or {}).get("name")
+            if not spec or not name:
+                raise OpenAIChatError(
+                    _("Tool '%(tool)s' has no usable schema and cannot be sent to %(model)s.")
+                    % {"tool": tool.name, "model": model.name},
+                    model=model.name, param="tools", code="invalid_tool",
+                )
+            if not OPENAI_TOOL_NAME_RE.match(name):
+                raise OpenAIChatError(
+                    _(
+                        "Tool name '%(tool)s' is not accepted by OpenAI: use 1 to 64 "
+                        "letters, digits, underscores or hyphens."
+                    )
+                    % {"tool": name},
+                    model=model.name, param="tools.name", code="invalid_tool_name",
+                )
+            parameters = spec["function"].get("parameters") or {}
+            if parameters.get("type") != "object":
+                raise OpenAIChatError(
+                    _("Tool '%(tool)s' parameters must be a JSON object schema.")
+                    % {"tool": name},
+                    model=model.name, param="tools.parameters", code="invalid_tool_schema",
+                )
+            result.append(spec)
+        return result
+
+    def _openai_select_endpoint(self, capabilities, requested, has_tools, effort):
+        """Pick the endpoint, or explain why the combination cannot work.
+
+        ``auto`` keeps Chat Completions for non-reasoning models (the GPT-4
+        class, unchanged behavior) and uses Responses for reasoning models,
+        Responses-only models and any request whose tools need it. Tools are
+        never dropped to make a request fit.
+        """
+        model = capabilities.model_id
+        if not capabilities.chat_capable:
+            kind = KIND_LABELS.get(capabilities.kind, capabilities.kind)
+            raise OpenAIChatError(
+                _(
+                    "OpenAI model %(model)s is a %(kind)s model and cannot be used for "
+                    "chat. Choose a chat model, or run 'Probe OpenAI Capabilities' on "
+                    "the model if it is new."
+                )
+                % {"model": model, "kind": kind},
+                model=model, param="model", code="unsupported_model",
+            )
+        if not capabilities.verified:
+            raise OpenAIChatError(
+                _(
+                    "OpenAI model %(model)s is not in the verified capability list. "
+                    "Run 'Probe OpenAI Capabilities' on the model before using it for chat."
+                )
+                % {"model": model},
+                model=model, param="model", code="unverified_model",
+            )
+        requested = requested or "auto"
+        if requested in ENDPOINTS:
+            if not capabilities.supports_endpoint(requested):
+                raise OpenAIChatError(
+                    _("OpenAI model %(model)s does not support %(endpoint)s. Supported: %(supported)s.")
+                    % {
+                        "model": model,
+                        "endpoint": ENDPOINT_PATHS[requested],
+                        "supported": ", ".join(ENDPOINT_PATHS[e] for e in capabilities.endpoints),
+                    },
+                    model=model, endpoint=requested, param="endpoint", code="unsupported_endpoint",
+                )
+            if has_tools and not capabilities.tools_supported(requested, effort):
+                raise OpenAIChatError(
+                    self._openai_tools_unsupported_message(capabilities, requested, effort),
+                    model=model, endpoint=requested, param="tools", code="unsupported_tools",
+                )
+            return requested
+        if requested != "auto":
+            raise OpenAIChatError(
+                _("Unknown OpenAI endpoint setting '%s'.") % requested,
+                model=model, param="endpoint", code="invalid_endpoint",
+            )
+        prefer_completions = (
+            not capabilities.reasoning and capabilities.supports_endpoint(CHAT_COMPLETIONS)
+        )
+        order = (CHAT_COMPLETIONS, RESPONSES) if prefer_completions else (RESPONSES, CHAT_COMPLETIONS)
+        for endpoint in order:
+            if not capabilities.supports_endpoint(endpoint):
+                continue
+            if has_tools and not capabilities.tools_supported(endpoint, effort):
+                continue
+            return endpoint
+        raise OpenAIChatError(
+            self._openai_tools_unsupported_message(capabilities, None, effort),
+            model=model, param="tools", code="unsupported_tools",
+        )
+
+    def _openai_tools_unsupported_message(self, capabilities, endpoint, effort):
+        model = capabilities.model_id
+        if (
+            endpoint == CHAT_COMPLETIONS
+            and capabilities.cc_function_tools == "effort_none"
+        ):
+            return _(
+                "OpenAI model %(model)s only accepts function tools on "
+                "/v1/chat/completions with reasoning effort 'none' (current: %(effort)s). "
+                "Use the Responses endpoint or set reasoning effort to 'none'."
+            ) % {"model": model, "effort": capabilities.effective_effort(endpoint, effort)}
+        if endpoint:
+            return _(
+                "OpenAI model %(model)s does not accept function tools on %(endpoint)s. "
+                "Use the Responses endpoint (automatic routing) or remove the tools."
+            ) % {"model": model, "endpoint": ENDPOINT_PATHS[endpoint]}
+        return _(
+            "OpenAI model %(model)s does not support function tools on any endpoint. "
+            "Choose another model or remove the tools from this assistant."
+        ) % {"model": model}
+
+    def _openai_build_options(self, capabilities, endpoint, options):
+        """Endpoint-specific request parameters for this model.
+
+        Parameters the model does not accept at all are omitted (and named
+        in the log); a value the model rejects raises an actionable error.
+        """
+        model = capabilities.model_id
+        params = {}
+        omitted = []
+        effort = options.get("reasoning_effort")
+        if effort:
+            if not capabilities.reasoning:
+                omitted.append("reasoning_effort")
+                effort = None
+            else:
+                allowed = capabilities.efforts_for(endpoint)
+                if allowed and effort not in allowed:
+                    raise OpenAIChatError(
+                        _(
+                            "OpenAI model %(model)s does not accept reasoning effort "
+                            "'%(effort)s' on %(endpoint)s. Supported: %(allowed)s."
+                        )
+                        % {
+                            "model": model,
+                            "effort": effort,
+                            "endpoint": ENDPOINT_PATHS[endpoint],
+                            "allowed": ", ".join(allowed),
+                        },
+                        model=model, endpoint=endpoint, param="reasoning_effort",
+                        code="unsupported_value",
+                    )
+                if endpoint == RESPONSES:
+                    params["reasoning"] = {"effort": effort}
+                else:
+                    params["reasoning_effort"] = effort
+        max_tokens = options.get("max_output_tokens")
+        if max_tokens:
+            key = "max_output_tokens" if endpoint == RESPONSES else "max_completion_tokens"
+            params[key] = int(max_tokens)
+        verbosity = options.get("verbosity")
+        if verbosity:
+            if verbosity not in VERBOSITY_VALUES:
+                raise OpenAIChatError(
+                    _("Verbosity must be one of %s.") % ", ".join(VERBOSITY_VALUES),
+                    model=model, endpoint=endpoint, param="verbosity", code="invalid_value",
+                )
+            if not capabilities.verbosity:
+                omitted.append("verbosity")
+            elif endpoint == RESPONSES:
+                params["text"] = {"verbosity": verbosity}
+            else:
+                params["verbosity"] = verbosity
+        sampling_ok = capabilities.sampling_allowed(endpoint, effort)
+        for key in SAMPLING_PARAMS:
+            if options.get(key) is None:
+                continue
+            if not sampling_ok or (endpoint == RESPONSES and key == "logprobs"):
+                omitted.append(key)
+            else:
+                params[key] = options[key]
+        if omitted:
+            _logger.info(
+                "OpenAI chat: omitted %s, not supported by model %s on %s",
+                ", ".join(omitted), model, ENDPOINT_PATHS[endpoint],
+            )
+        return params
+
+    def _openai_responses_chat(self, model, capabilities, formatted_messages, stream,
+                               formatted_tools, options, kwargs):
+        params = {
+            "model": model.name,
+            "input": messages_to_input(formatted_messages, model.name),
+            "store": False,
+        }
+        if capabilities.reasoning:
+            params["include"] = ["reasoning.encrypted_content"]
+        params.update(self._openai_build_options(capabilities, RESPONSES, options))
+        if formatted_tools:
+            params["tools"] = [chat_tool_to_responses(tool) for tool in formatted_tools]
+            params["tool_choice"] = chat_tool_choice_to_responses(
+                kwargs.get("tool_choice") or "auto"
+            )
+            if options.get("parallel_tool_calls") is not None:
+                params["parallel_tool_calls"] = bool(options["parallel_tool_calls"])
+
+        if stream and capabilities.streaming:
+            events = self._openai_api_call(
+                RESPONSES, model.name,
+                lambda: self.client.responses.create(stream=True, **params),
+            )
+            return self._openai_guard_stream(
+                stream_chunks(events, model.name), RESPONSES, model.name
+            )
+        response = self._openai_api_call(
+            RESPONSES, model.name, lambda: self.client.responses.create(**params)
+        )
+        result = normalize_response(response, model.name)
+        if stream:
+            # Models without streaming still feed a streaming caller.
+            return response_chunks(result)
+        return result
+
+    def _openai_completions_chat(self, model, capabilities, formatted_messages, stream,
+                                 formatted_tools, options, kwargs):
+        params = {
+            "model": model.name,
+            "messages": strip_replay_state(formatted_messages),
+        }
+        params.update(self._openai_build_options(capabilities, CHAT_COMPLETIONS, options))
+        if formatted_tools:
+            params["tools"] = formatted_tools
+            params["tool_choice"] = kwargs.get("tool_choice") or "auto"
+            if options.get("parallel_tool_calls") is not None:
+                params["parallel_tool_calls"] = bool(options["parallel_tool_calls"])
+        use_stream = stream and capabilities.streaming
+        response = self._openai_api_call(
+            CHAT_COMPLETIONS, model.name,
+            lambda: self.client.chat.completions.create(stream=use_stream, **params),
+        )
+        if use_stream:
+            return self._openai_guard_stream(
+                self._openai_process_streaming_response(
+                    response, require_finish=True, model_name=model.name
+                ),
+                CHAT_COMPLETIONS, model.name,
+            )
+        result = self._openai_process_non_streaming_response(
+            response, model_name=model.name, strict=True
+        )
+        if stream:
+            return response_chunks(result)
+        return result
+
+    def _openai_api_call(self, endpoint, model_name, call):
+        try:
+            return call()
+        except OpenAIChatError:
+            raise
+        except APIError as error:
+            raise self._openai_chat_error(error, endpoint, model_name) from None
+
+    def _openai_guard_stream(self, chunks, endpoint, model_name):
+        """Map SDK errors raised while iterating a stream to OpenAIChatError."""
+        try:
+            yield from chunks
+        except OpenAIChatError as error:
+            _logger.warning("OpenAI chat stream failed: %s", error.log_details())
+            raise
+        except APIError as error:
+            raise self._openai_chat_error(error, endpoint, model_name) from None
+
+    def _openai_chat_error(self, error, endpoint, model_name):
+        """Actionable chat error: model, endpoint, parameter, provider code.
+
+        Only structured error fields are kept; request/response bodies and
+        the API key never reach the message or the log.
+        """
+        status = getattr(error, "status_code", None)
+        body = getattr(error, "body", None)
+        detail = body.get("error", body) if isinstance(body, dict) else {}
+        if not isinstance(detail, dict):
+            detail = {}
+        code = detail.get("code") or getattr(error, "code", None)
+        param = detail.get("param") or getattr(error, "param", None)
+        provider_message = redact(detail.get("message") or "")
+        retryable = isinstance(error, (APIConnectionError, RateLimitError)) or (
+            status is not None and status >= 500
+        )
+        if isinstance(error, AuthenticationError) or status in (401, 403):
+            summary = _("OpenAI rejected the API key or its permissions.")
+            provider_message = ""
+        elif isinstance(error, RateLimitError) or status == 429:
+            summary = _("OpenAI is rate limiting requests; try again shortly.")
+        elif isinstance(error, (APIConnectionError, APITimeoutError)):
+            summary = _("OpenAI could not be reached; try again.")
+        elif status == 404:
+            summary = _("This OpenAI account cannot use the model.")
+        else:
+            summary = _("OpenAI rejected the request.")
+        message = _("%(summary)s Model: %(model)s, endpoint: %(endpoint)s") % {
+            "summary": summary,
+            "model": model_name,
+            "endpoint": ENDPOINT_PATHS[endpoint],
+        }
+        if param:
+            message += _(", parameter: %s") % param
+        if code:
+            message += _(", code: %s") % code
+        message += "."
+        if provider_message:
+            message += " " + provider_message
+        chat_error = OpenAIChatError(
+            message, model=model_name, endpoint=endpoint, param=param, code=code,
+            status=status, retryable=retryable,
+        )
+        _logger.warning("OpenAI chat request failed: %s", chat_error.log_details())
+        return chat_error
+
+    # ------------------------------------------------------------------
+    # Capability probe
+    # ------------------------------------------------------------------
+    OPENAI_PROBE_TOOL = {
+        "type": "function",
+        "function": {
+            "name": "odoo_capability_probe",
+            "description": "Record that tool calling works. Always call it.",
+            "parameters": {
+                "type": "object",
+                "properties": {"ok": {"type": "boolean"}},
+                "required": ["ok"],
+            },
+        },
+    }
+    #: 8x8 white PNG used to check image input.
+    OPENAI_PROBE_IMAGE = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAD0lEQVR4"
+        "nGP4jwMwDC0JALoev0Ewkwr8AAAAAElFTkSuQmCC"
+    )
+
+    def openai_probe_model(self, model):
+        """Send minimal requests to learn which endpoints/tools/images a model accepts.
+
+        Each check is a tiny request (a few output tokens). Only structured
+        error fields are recorded, never response bodies.
+        """
+        self.ensure_one()
+        if not self._openai_uses_capability_routing():
+            raise UserError(_("Capability probing is only available for the OpenAI API."))
+        name = model.name
+        user_text = [{"role": "user", "content": "Reply with the single word OK."}]
+        user_image = [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Reply with the single word OK."},
+                {"type": "image_url", "image_url": {"url": self.OPENAI_PROBE_IMAGE}},
+            ],
+        }]
+        tool_prompt = [{"role": "user", "content": "Call the odoo_capability_probe tool."}]
+        result = {
+            "checked_at": fields.Datetime.to_string(fields.Datetime.now()),
+            "endpoints": {},
+            "errors": {},
+        }
+
+        def attempt(label, call):
+            try:
+                return call()
+            except Exception as error:  # noqa: BLE001 - every outcome is recorded
+                status = getattr(error, "status_code", None)
+                body = getattr(error, "body", None)
+                detail = body.get("error", body) if isinstance(body, dict) else {}
+                detail = detail if isinstance(detail, dict) else {}
+                result["errors"][label] = {
+                    "status": status,
+                    "code": detail.get("code"),
+                    "param": detail.get("param"),
+                    "type": type(error).__name__,
+                }
+                return None
+
+        def responses(messages, **extra):
+            return self.client.responses.create(
+                model=name, input=messages_to_input(messages, name), store=False,
+                max_output_tokens=256, **extra,
+            )
+
+        def completions(messages, **extra):
+            return self.client.chat.completions.create(
+                model=name, messages=messages, max_completion_tokens=256, **extra,
+            )
+
+        reasoning = False
+        text = attempt("responses.text", lambda: responses(user_text))
+        r_result = {"text": text is not None}
+        if text is not None:
+            usage = getattr(text, "usage", None)
+            details = getattr(usage, "output_tokens_details", None)
+            reasoning = bool(getattr(details, "reasoning_tokens", 0)) or any(
+                getattr(item, "type", "") == "reasoning" for item in (text.output or [])
+            )
+            tool = attempt("responses.tools", lambda: responses(
+                tool_prompt,
+                tools=[chat_tool_to_responses(self.OPENAI_PROBE_TOOL)],
+                tool_choice="required",
+            ))
+            r_result["tools"] = bool(tool is not None and any(
+                getattr(item, "type", "") == "function_call" for item in (tool.output or [])
+            ))
+            r_result["image"] = attempt("responses.image", lambda: responses(user_image)) is not None
+            result["sampling"] = attempt(
+                "responses.temperature", lambda: responses(user_text, temperature=0.5)
+            ) is not None
+        result["endpoints"][RESPONSES] = r_result
+
+        text = attempt("chat_completions.text", lambda: completions(user_text))
+        c_result = {"text": text is not None}
+        if text is not None:
+            tool = attempt("chat_completions.tools", lambda: completions(
+                tool_prompt, tools=[self.OPENAI_PROBE_TOOL], tool_choice="required",
+            ))
+            c_result["tools"] = bool(
+                tool is not None and tool.choices and tool.choices[0].message.tool_calls
+            )
+            c_result["image"] = attempt(
+                "chat_completions.image", lambda: completions(user_image)
+            ) is not None
+        result["endpoints"][CHAT_COMPLETIONS] = c_result
+        result["reasoning"] = reasoning
+        return result
+
+    def _openai_process_non_streaming_response(self, response, model_name=None, strict=False):
+        """Processes OpenAI non-streamed response and returns ONE standardized dict.
+
+        ``strict`` (official OpenAI API) raises :class:`OpenAIChatError` for a
+        truncated or empty answer instead of returning an ``error`` key the
+        thread would ignore.
+        """
         _logger.info("Processing non-streaming OpenAI response.")
+        if strict:
+            return self._openai_strict_completion(response, model_name)
         try:
             choice = response.choices[0]
             message = choice.message
@@ -244,11 +789,62 @@ class LLMProvider(models.Model):
             _logger.exception("Error processing OpenAI non-streaming response")
             return {"error": f"Error processing response: {e}"}
 
-    def _openai_process_streaming_response(self, response_stream):
+    def _openai_strict_completion(self, response, model_name):
+        choice = response.choices[0] if response.choices else None
+        if choice is None:
+            raise OpenAIChatError(
+                _("OpenAI returned no choices for model %s.") % model_name,
+                model=model_name, endpoint=CHAT_COMPLETIONS, code="empty_response",
+            )
+        message = choice.message
+        tool_calls = [
+            {
+                "id": tc.id,
+                "type": tc.type,
+                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+            }
+            for tc in (message.tool_calls or [])
+        ]
+        content = message.content or getattr(message, "refusal", None) or ""
+        if choice.finish_reason == "length" and (tool_calls or not content):
+            raise OpenAIChatError(
+                _(
+                    "OpenAI stopped the response for model %s early (max output tokens). "
+                    "No tool was executed. Increase the maximum output tokens or lower "
+                    "the reasoning effort."
+                ) % model_name,
+                model=model_name, endpoint=CHAT_COMPLETIONS,
+                param="max_completion_tokens", code="incomplete:max_output_tokens",
+            )
+        result = {"finish_reason": choice.finish_reason}
+        if content:
+            result["content"] = content
+        if tool_calls:
+            result["tool_calls"] = tool_calls
+        usage = getattr(response, "usage", None)
+        if usage:
+            details = getattr(usage, "completion_tokens_details", None)
+            result["usage"] = {
+                "input_tokens": usage.prompt_tokens,
+                "output_tokens": usage.completion_tokens,
+                "reasoning_tokens": getattr(details, "reasoning_tokens", None),
+                "total_tokens": usage.total_tokens,
+            }
+        return result
+
+    def _openai_process_streaming_response(self, response_stream, require_finish=False,
+                                           model_name=None):
         """
         Processes OpenAI stream and yields standardized dicts for start_thread_loop.
         Yields: {'content': str} OR {'tool_calls': list} OR {'error': str}
+
+        ``require_finish`` (official OpenAI API): a stream that ends without a
+        finish reason was interrupted; its tool calls are not released and
+        :class:`OpenAIChatError` is raised.
         """
+        if require_finish:
+            yield from self._openai_strict_stream(response_stream, model_name)
+            return
         assembled_tool_calls = {}
         final_tool_calls_list = []
         stream_has_tools = False
@@ -357,6 +953,76 @@ class LLMProvider(models.Model):
         )
 
         return tool_call_chunks
+
+    def _openai_strict_stream(self, response_stream, model_name):
+        """Chat Completions stream for the official API.
+
+        Tool-call fragments are assembled by index and only released when the
+        stream reports a finish reason, so an interrupted stream never runs a
+        half-received tool call.
+        """
+        calls = {}
+        finish_reason = None
+        for chunk in response_stream:
+            choice = chunk.choices[0] if chunk.choices else None
+            if not choice:
+                continue
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+            delta = choice.delta
+            if not delta:
+                continue
+            if delta.content:
+                yield {"content": delta.content}
+            elif getattr(delta, "refusal", None):
+                yield {"content": delta.refusal}
+            for position, fragment in enumerate(delta.tool_calls or []):
+                index = fragment.index if fragment.index is not None else position
+                call = calls.setdefault(
+                    index, {"id": "", "type": "function", "name": "", "arguments": ""}
+                )
+                if fragment.id:
+                    call["id"] = fragment.id
+                if fragment.function and fragment.function.name:
+                    call["name"] = fragment.function.name
+                if fragment.function and fragment.function.arguments:
+                    call["arguments"] += fragment.function.arguments
+        if finish_reason is None:
+            raise OpenAIChatError(
+                _(
+                    "The OpenAI stream for model %s ended before the response was "
+                    "completed. No tool was executed; send the message again."
+                ) % model_name,
+                model=model_name, endpoint=CHAT_COMPLETIONS,
+                code="stream_interrupted", retryable=True,
+            )
+        if calls and finish_reason == "length":
+            raise OpenAIChatError(
+                _(
+                    "OpenAI stopped the response for model %s early (max output tokens). "
+                    "No tool was executed."
+                ) % model_name,
+                model=model_name, endpoint=CHAT_COMPLETIONS,
+                param="max_completion_tokens", code="incomplete:max_output_tokens",
+            )
+        tool_calls = []
+        seen = set()
+        for _index, call in sorted(calls.items()):
+            if not call["id"] or not call["name"] or call["id"] in seen:
+                raise OpenAIChatError(
+                    _("OpenAI returned an incomplete tool call for model %s; no tool was executed.")
+                    % model_name,
+                    model=model_name, endpoint=CHAT_COMPLETIONS, code="incomplete_tool_call",
+                )
+            seen.add(call["id"])
+            tool_calls.append({
+                "id": call["id"],
+                "type": call["type"],
+                "function": {"name": call["name"], "arguments": call["arguments"] or "{}"},
+            })
+        if tool_calls:
+            yield {"tool_calls": tool_calls}
+        yield {"finish_reason": finish_reason}
 
     def openai_embedding(self, texts, model=None):
         """Generate embeddings using OpenAI"""
@@ -1025,7 +1691,13 @@ class LLMProvider(models.Model):
         else:
             models = self.client.models.list()
             for model in models.data:
-                yield self._openai_parse_model(model)
+                parsed = self._openai_parse_model(model)
+                tags = parsed["details"].get("capabilities") or []
+                if "unsupported" in tags:
+                    # Speech, image, realtime, moderation... have no Odoo
+                    # adapter here; listing them would only offer dead models.
+                    continue
+                yield parsed
 
     # OpenAI API doesn't expose capabilities - use pattern matching
     OPENAI_VISION_PATTERNS = (
@@ -1038,7 +1710,52 @@ class LLMProvider(models.Model):
         "o3",
     )
 
+    #: Kinds this provider has no Odoo adapter for; never offered as chat.
+    OPENAI_UNSUPPORTED_KINDS = frozenset({
+        KIND_SPEECH,
+        KIND_IMAGE,
+        KIND_REALTIME,
+        KIND_AUDIO_CHAT,
+        KIND_MODERATION,
+        KIND_SEARCH,
+        KIND_COMPLETION,
+    })
+
+    def openai_model_capability_tags(self, capabilities):
+        """``details['capabilities']`` tags for one registry entry."""
+        if capabilities.chat_capable and capabilities.verified:
+            tags = ["chat"]
+            if capabilities.vision:
+                tags.append("multimodal")
+            if capabilities.function_tools or capabilities.cc_function_tools != "never":
+                tags.append("function_calling")
+            if capabilities.reasoning:
+                tags.append("reasoning")
+            return tags
+        if capabilities.kind == KIND_EMBEDDING:
+            return ["embedding"]
+        if capabilities.kind == KIND_TRANSCRIPTION:
+            return ["transcription"]
+        if capabilities.kind in self.OPENAI_UNSUPPORTED_KINDS:
+            return ["unsupported", capabilities.kind]
+        return ["unverified"]
+
     def _openai_parse_model(self, model):
+        if self.service == "openai" and self._openai_uses_capability_routing():
+            capabilities = lookup(model.id)
+            return {
+                "name": model.id,
+                "details": {
+                    "id": model.id,
+                    "capabilities": self.openai_model_capability_tags(capabilities),
+                    "openai_capabilities": capabilities.to_dict(),
+                    **model.model_dump(),
+                },
+            }
+        return self._openai_parse_model_by_pattern(model)
+
+    def _openai_parse_model_by_pattern(self, model):
+        """Name-pattern discovery kept for OpenAI-compatible hosts."""
         capabilities = ["chat"]
         model_id_lower = model.id.lower()
 
@@ -1063,6 +1780,10 @@ class LLMProvider(models.Model):
             lowered = (name or "").lower()
             if any(token in lowered for token in self.OPENAI_TRANSCRIPTION_PATTERNS):
                 return "transcription"
+            if "unsupported" in (capabilities or []):
+                return "unsupported"
+            if "unverified" in (capabilities or []):
+                return "unverified"
         return super()._determine_model_use(name, capabilities)
 
     def _validate_and_clean_messages(self, messages):
@@ -1100,7 +1821,9 @@ class LLMProvider(models.Model):
         Returns:
             List of formatted messages in OpenAI-compatible format
         """
-        is_multimodal = model and model.model_use == "multimodal"
+        is_multimodal = bool(model) and model.model_use == "multimodal"
+        if model and not is_multimodal and self._openai_uses_capability_routing():
+            is_multimodal = model._openai_capabilities().vision
         formatted_messages = []
 
         if system_prompt:

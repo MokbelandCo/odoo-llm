@@ -17,6 +17,7 @@ _AI_SECRET_KEYS = frozenset({
     "access_token",
     "refresh_token",
     "secret",
+    "encrypted_content",
 })
 
 
