@@ -276,6 +276,37 @@ class TestOpenAIChatRouting(TransactionCase):
         self.assertEqual(caught.exception.details["code"], "unverified_model")
         self.assertFalse(self.calls)
 
+    def test_probe_verifies_unknown_model_for_chat(self):
+        model = self._model("gpt-7-nova", "unverified")
+
+        def responses(**params):
+            self.calls.append((RESPONSES, params))
+            if "temperature" in params:
+                raise _bad_request("no", param="temperature", code="unsupported_parameter")
+            if params.get("tools"):
+                return {"output": [_call_item("p1", "odoo_capability_probe", '{"ok":true}')]}
+            return {"output": [_message_item("OK")]}
+
+        def completions(**params):
+            raise _bad_request("no", param="model", code="unsupported_model")
+
+        self.client.responses.create = lambda **p: SimpleNamespace(**self._probe_dict(responses(**p)))
+        self.client.chat.completions.create = completions
+        model.action_openai_probe_capabilities()
+        self.assertEqual(model.model_use, "multimodal")
+        capabilities = model._openai_capabilities()
+        self.assertTrue(capabilities.verified)
+        self.assertEqual(capabilities.endpoints, (RESPONSES,))
+        self.assertTrue(capabilities.reasoning)
+        self.assertFalse(capabilities.sampling_allowed(RESPONSES))
+        # A later re-import does not reset the verified model to unverified.
+        model.write({"model_use": "unverified"})
+        self.assertEqual(model.model_use, "multimodal")
+
+    @staticmethod
+    def _probe_dict(response):
+        return {"output": [SimpleNamespace(**item) for item in response["output"]]}
+
     def test_compatible_host_keeps_legacy_chat_completions(self):
         self.provider.api_base = "http://localhost:11434/v1"
         self.responses_queue.append(_cc_response("legacy"))

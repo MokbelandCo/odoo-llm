@@ -712,11 +712,12 @@ class LLMProvider(models.Model):
         text = attempt("responses.text", lambda: responses(user_text))
         r_result = {"text": text is not None}
         if text is not None:
-            usage = getattr(text, "usage", None)
-            details = getattr(usage, "output_tokens_details", None)
-            reasoning = bool(getattr(details, "reasoning_tokens", 0)) or any(
-                getattr(item, "type", "") == "reasoning" for item in (text.output or [])
-            )
+            # Non-reasoning models reject the reasoning parameter outright;
+            # token usage on a trivial prompt is not a reliable signal.
+            reasoning = attempt(
+                "responses.reasoning",
+                lambda: responses(user_text, reasoning={"effort": "medium"}),
+            ) is not None
             tool = attempt("responses.tools", lambda: responses(
                 tool_prompt,
                 tools=[chat_tool_to_responses(self.OPENAI_PROBE_TOOL)],

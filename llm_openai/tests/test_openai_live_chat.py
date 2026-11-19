@@ -35,10 +35,11 @@ DEFAULT_MODELS = (
     "gpt-6.2-sol",
     "gpt-5.5-pro",
 )
-#: 16x16 solid red PNG.
+#: 64x64 solid red PNG (smaller images are misread by some mini models).
 RED_PNG = (
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4"
-    "nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII="
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAS0lEQVR42u3PQQkA"
+    "AAgAsetfWiP4FgYrsKZeS0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA"
+    "QEDgsqnc8OJg6Ln3AAAAAElFTkSuQmCC"
 )
 WEATHER_SCHEMA = {
     "type": "object",
