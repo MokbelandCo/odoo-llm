@@ -246,7 +246,7 @@ export class LLMChatContainer extends Component {
       {
         onClose: async () => {
           // Refresh thread data after closing form
-          await this.activeThread.fetchThreadData([
+          await this.activeThread.fetchData([
             "name",
             "provider_id",
             "model_id",

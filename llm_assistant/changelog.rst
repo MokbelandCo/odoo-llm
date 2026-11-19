@@ -1,3 +1,8 @@
+18.0.1.1.1 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Assistant thread data uses the Odoo 18 mail Store API and Thread.fetchData.
+
 18.0.1.5.4 (2025-12-02)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

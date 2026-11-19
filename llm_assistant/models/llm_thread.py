@@ -163,9 +163,9 @@ class LLMThread(models.Model):
 
         return thread, assistant, None
 
-    def _thread_to_store(self, store, fields, **kwargs):
+    def _thread_to_store(self, store, **kwargs):
         """Extend base _thread_to_store to include assistant_id and prompt_id."""
-        super()._thread_to_store(store, fields, **kwargs)
+        super()._thread_to_store(store, **kwargs)
 
         # Always add assistant_id and prompt_id to thread data (either value or False)
         for thread in self:
@@ -188,7 +188,7 @@ class LLMThread(models.Model):
                 if thread.prompt_id
                 else False,
             }
-            store.add_model_values("mail.thread", thread_data)
+            store.add("mail.thread", thread_data)
 
     def _extract_message_content(self, message):
         """Extract text content from a message regardless of format"""

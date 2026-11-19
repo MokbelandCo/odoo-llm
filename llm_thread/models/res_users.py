@@ -15,4 +15,4 @@ class ResUsers(models.Model):
 
         # Use inherited _thread_to_store method from mail.thread
         if llm_threads:
-            store.add(llm_threads, [], as_thread=True)
+            store.add(llm_threads, as_thread=True)

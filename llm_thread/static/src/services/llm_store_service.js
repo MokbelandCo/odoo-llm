@@ -164,9 +164,7 @@ export const llmStoreService = {
             );
 
             // Get the created message and add it to the thread's messages collection
-            const createdMessage = mailStore["mail.message"].get(
-              data.message.id
-            );
+            const createdMessage = mailStore.Message.get(data.message.id);
 
             // Add message to the correct thread's messages collection (not the active thread)
             const createThread = mailStore.Thread.get({
@@ -370,7 +368,7 @@ export const llmStoreService = {
       // Refresh threads and optionally select specific thread as Discuss
       async refreshThreadsAndSelect(threadId, { select = true } = {}) {
         // Re-run init_messaging so the new thread lands in mail.store
-        await mailStore.fetchStoreData("init_messaging");
+        await mailStore.fetchData({ init_messaging: {} });
 
         // Wait a moment for threads to be populated
         await new Promise((resolve) => setTimeout(resolve, 100));
