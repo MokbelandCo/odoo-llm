@@ -89,6 +89,12 @@
       min-width: 0;
       min-height: 0;
 
+      // Main chat column: without this a long thread title widens the
+      // header past the popup and pushes the settings ellipsis out of view.
+      > .flex-grow-1 {
+        min-width: 0;
+      }
+
       .o-llm-thread-header {
         flex-wrap: nowrap;
         min-height: auto;
