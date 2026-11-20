@@ -3,6 +3,8 @@ import logging
 
 from odoo import _, api, fields, models, tools
 
+from .llm_media_capabilities import MediaCapabilities, attachment_media_role
+
 _logger = logging.getLogger(__name__)
 
 IMAGE_MIMETYPES = (
@@ -361,14 +363,18 @@ class MailMessage(models.Model):
                 _logger.warning("Failed to decode text attachment %s: %s", att.name, e)
         return texts
 
-    def _get_audio_attachments(self):
+    def _get_audio_attachments(self, include_dictation=False):
         """Get audio attachments with detected format for OpenAI API.
 
         Returns list of dicts with format (wav, mp3, etc.), data (base64), and name.
-        Only for use with OpenAI gpt-4o-audio-preview models.
+        Dictation-source recordings are excluded by default so they are not
+        resent as ``input_audio`` on every chat turn.
         """
         audios = []
         for att in self._get_attachments_by_mimetype(AUDIO_MIMETYPES):
+            role = attachment_media_role(att)
+            if role == "dictation" and not include_dictation:
+                continue
             try:
                 raw_bytes = base64.b64decode(att.datas)
                 audio_format = _detect_audio_format(raw_bytes)
@@ -378,6 +384,7 @@ class MailMessage(models.Model):
                             "format": audio_format,
                             "data": att.datas.decode("utf-8"),
                             "name": att.name or "audio",
+                            "media_role": role,
                         },
                     )
                 else:
@@ -394,6 +401,7 @@ class MailMessage(models.Model):
         self,
         provider_service,
         is_multimodal=False,
+        media_capabilities=None,
     ):
         """Get list of attachments not supported by the current provider/model.
 
@@ -408,25 +416,40 @@ class MailMessage(models.Model):
         - User switches to text-only model → images in context unsupported
 
         Supported file types:
-        - Images (JPEG, PNG, GIF, WebP) - requires multimodal model
-        - PDFs - requires multimodal model
-        - Text files (plain text, markdown, code) - always supported
+        - Images (JPEG, PNG, GIF, WebP) - requires image capability
+        - PDFs - requires pdf capability
+        - Text files (plain text, markdown, code) - requires text_file capability
+        - Analyze-mode audio - requires direct_audio_chat capability
+        - Dictation-source audio - kept for audit; never sent to the chat model
 
         Unsupported (user is notified, file skipped):
-        - Audio files - not yet implemented
         - Video files - not supported by any LLM
         - Office documents (Word, Excel, PPT) - must convert to PDF first
+        - Raw/analyze audio on models/endpoints without direct audio chat
 
         The notification message has is_error=True so it's excluded from
         future LLM context, allowing the conversation to continue normally.
 
         Args:
             provider_service: The provider service name (e.g., 'anthropic', 'openai')
-            is_multimodal: Whether the model supports images/PDFs
+            is_multimodal: Legacy flag; used when media_capabilities is omitted
+            media_capabilities: Optional dict from ``llm.model.get_media_capabilities()``
 
         Returns:
             List of dicts with name, mimetype, and reason for each unsupported attachment
         """
+        if media_capabilities is None:
+            media_capabilities = MediaCapabilities(
+                image=bool(is_multimodal),
+                pdf=bool(is_multimodal),
+                text_file=True,
+            ).to_dict()
+
+        supports_image = bool(media_capabilities.get("image"))
+        supports_pdf = bool(media_capabilities.get("pdf"))
+        supports_text = bool(media_capabilities.get("text_file", True))
+        supports_direct_audio = bool(media_capabilities.get("direct_audio_chat"))
+        chat_endpoint = media_capabilities.get("chat_endpoint")
         unsupported = []
 
         for message in self:
@@ -436,6 +459,7 @@ class MailMessage(models.Model):
 
                 mimetype = att.mimetype
                 reason = None
+                media_role = attachment_media_role(att)
 
                 # Video - never supported by any LLM
                 if mimetype in VIDEO_MIMETYPES:
@@ -445,16 +469,43 @@ class MailMessage(models.Model):
                 elif mimetype in OFFICE_MIMETYPES:
                     reason = _("Office documents must be converted to PDF first")
 
-                # Audio - not yet implemented
+                # Audio policy
                 elif mimetype in AUDIO_MIMETYPES:
-                    reason = _("Audio files are not yet supported")
+                    if media_role == "dictation":
+                        # Audit/playback only — never sent to the chat model.
+                        reason = None
+                    elif not supports_direct_audio:
+                        if provider_service == "anthropic":
+                            reason = _(
+                                "This model does not accept raw audio. "
+                                "Use voice dictation to transcribe first."
+                            )
+                        elif chat_endpoint == "responses":
+                            reason = _(
+                                "Audio cannot be sent through the Responses endpoint. "
+                                "Use voice dictation, or switch to an audio-capable "
+                                "Chat Completions model and choose Analyze audio."
+                            )
+                        else:
+                            reason = _(
+                                "This model does not support direct audio analysis. "
+                                "Use voice dictation to transcribe first."
+                            )
+                    elif media_role != "analyze":
+                        reason = _(
+                            "Attach audio with Analyze audio mode, or use voice "
+                            "dictation to send a transcript instead."
+                        )
 
-                # Images/PDFs - only with multimodal models
-                elif mimetype in IMAGE_MIMETYPES and not is_multimodal:
+                # Images/PDFs/text - capability gated
+                elif mimetype in IMAGE_MIMETYPES and not supports_image:
                     reason = _("This model does not support images")
 
-                elif mimetype in PDF_MIMETYPES and not is_multimodal:
+                elif mimetype in PDF_MIMETYPES and not supports_pdf:
                     reason = _("This model does not support PDFs")
+
+                elif mimetype in TEXT_MIMETYPES and not supports_text:
+                    reason = _("This model does not support text file attachments")
 
                 if reason:
                     unsupported.append(

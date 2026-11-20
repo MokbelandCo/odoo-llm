@@ -8,7 +8,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "17.0.1.12.0",  # Last updated: commit 8166ce74 (2026-11-19)
+    "version": "17.0.1.13.0",  # Last updated: mh-1329 media / audio chat
     "depends": ["llm", "llm_tool", "llm_training"],
     "external_dependencies": {
         "python": ["openai"],

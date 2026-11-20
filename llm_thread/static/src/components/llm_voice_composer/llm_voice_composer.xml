@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+  <t t-name="llm_thread.LLMVoiceComposer">
+    <div class="o-llm-voice-composer d-flex align-items-center flex-wrap gap-1 ms-1">
+      <button
+        t-if="state.phase === 'idle' or state.phase === 'preview' or state.phase === 'error'"
+        class="btn btn-light btn-sm o-llm-voice-composer-record"
+        type="button"
+        t-on-click="startRecording"
+        t-att-disabled="isBusy"
+        t-att-title="showAnalyze ? 'Record a voice note (dictation by default)' : 'Record a voice note to dictate'"
+        aria-label="Record voice note"
+      >
+        <i class="fa fa-microphone"/>
+      </button>
+      <button
+        t-if="state.phase === 'recording'"
+        class="btn btn-danger btn-sm o-llm-voice-composer-stop"
+        type="button"
+        t-on-click="stopRecording"
+        title="Stop recording"
+        aria-label="Stop recording"
+      >
+        <i class="fa fa-stop"/>
+        <span class="ms-1" t-esc="formatDuration(state.durationMs)"/>
+      </button>
+      <span
+        t-if="state.phase === 'uploading' or state.phase === 'transcribing'"
+        class="text-muted small o-llm-voice-composer-progress"
+      >
+        <i class="fa fa-spinner fa-spin me-1"/>
+        <t t-if="state.phase === 'uploading'">Uploading…</t>
+        <t t-else="">Transcribing…</t>
+      </span>
+      <audio
+        t-if="state.objectUrl and (state.phase === 'preview' or state.phase === 'error')"
+        class="o-llm-voice-composer-player"
+        t-att-src="state.objectUrl"
+        controls="controls"
+        preload="metadata"
+        style="height: 28px; max-width: 160px;"
+      />
+      <button
+        t-if="state.objectUrl and (state.phase === 'preview' or state.phase === 'error')"
+        class="btn btn-link btn-sm text-danger o-llm-voice-composer-discard"
+        type="button"
+        t-on-click="discardRecording"
+        title="Discard recording"
+        aria-label="Discard recording"
+      >
+        <i class="fa fa-trash"/>
+      </button>
+      <button
+        t-if="showAnalyze and state.phase === 'preview'"
+        class="btn btn-link btn-sm o-llm-voice-composer-analyze"
+        type="button"
+        t-on-click="analyzeInstead"
+        title="Analyze the recording with an audio-capable model instead of dictation"
+      >
+        Analyze audio
+      </button>
+      <span t-if="state.error" class="text-danger small o-llm-voice-composer-error" t-esc="state.error"/>
+    </div>
+  </t>
+</templates>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+  <t t-name="llm_thread.ComposerVoiceActions" t-inherit="mail.Composer" t-inherit-mode="extension">
+    <xpath expr="//div[hasclass('o-mail-Composer-actions')]" position="inside">
+      <t t-if="isLLMThread">
+        <LLMVoiceComposer
+          threadId="props.composer.thread.id"
+          composer="props.composer"
+          mediaCapabilities="llmMediaCapabilities"
+        />
+      </t>
+    </xpath>
+  </t>
+</templates>

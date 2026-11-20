@@ -1,3 +1,4 @@
+import base64
 import contextlib
 import json
 import logging
@@ -8,11 +9,22 @@ from markupsafe import Markup
 from psycopg2 import OperationalError
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
+
+from odoo.addons.llm.models.llm_media_capabilities import mark_attachment_media_role
+from odoo.addons.llm.models.llm_transcription import LLMTranscriptionError
+from odoo.addons.llm.models.mail_message import (
+    AUDIO_MIMETYPES,
+    IMAGE_MIMETYPES,
+    PDF_MIMETYPES,
+    TEXT_MIMETYPES,
+)
 
 _logger = logging.getLogger(__name__)
 
 CHAT_MODEL_USES = ("chat", "multimodal")
+# Soft ceiling for chat attachments when the model does not advertise a limit.
+DEFAULT_CHAT_ATTACHMENT_MAX_BYTES = 32 * 1024 * 1024
 
 
 class RelatedRecordProxy:
@@ -441,13 +453,14 @@ class LLMThread(models.Model):
         with self._generation_lock():
             last_message = False
             if user_message_body or attachment_ids:
+                validated_ids = self._validate_chat_attachments(attachment_ids or [])
                 post_kwargs = {
                     "body": user_message_body or "",
                     "llm_role": "user",
                     "author_id": self.env.user.partner_id.id,
                 }
-                if attachment_ids:
-                    post_kwargs["attachment_ids"] = attachment_ids
+                if validated_ids:
+                    post_kwargs["attachment_ids"] = validated_ids
                 last_message = self.message_post(**post_kwargs)
                 yield {
                     "type": "message_create",
@@ -463,6 +476,12 @@ class LLMThread(models.Model):
                         # Show warning and return - don't call LLM
                         yield from self._handle_unsupported_attachments(unsupported)
                         return last_message
+
+            # Always validate the full context (covers mid-thread model switches).
+            context_unsupported = self._check_unsupported_attachments()
+            if context_unsupported:
+                yield from self._handle_unsupported_attachments(context_unsupported)
+                return last_message
 
             last_message = yield from self.generate_messages(last_message)
             return last_message
@@ -535,12 +554,267 @@ class LLMThread(models.Model):
             return []
 
         provider_service = self.provider_id.service
-        is_multimodal = self.model_id.model_use == "multimodal"
+        media_capabilities = self.model_id.get_media_capabilities()
+        is_multimodal = bool(
+            media_capabilities.get("image") or media_capabilities.get("pdf")
+        )
 
         return messages_to_check._get_unsupported_attachments(
             provider_service=provider_service,
             is_multimodal=is_multimodal,
+            media_capabilities=media_capabilities,
         )
+
+    def _validate_chat_attachments(self, attachment_ids):
+        """Validate ownership, access and size before attaching files to a thread.
+
+        The stream URL only carries attachment ids, never file bytes. Reject
+        foreign or inaccessible attachments before ``message_post``.
+        """
+        self.ensure_one()
+        if not attachment_ids:
+            return []
+        ids = []
+        for value in attachment_ids:
+            try:
+                att_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if att_id and att_id not in ids:
+                ids.append(att_id)
+        if not ids:
+            return []
+
+        Attachment = self.env["ir.attachment"]
+        try:
+            attachments = Attachment.browse(ids).exists()
+            # Force an ACL check while we still hold user rights.
+            attachments.check_access_rights("read")
+            attachments.check_access_rule("read")
+        except AccessError as err:
+            raise UserError(
+                _("You do not have access to one or more attached files.")
+            ) from err
+
+        if len(attachments) != len(ids):
+            raise UserError(_("One or more attachments could not be found."))
+
+        media = self.model_id.get_media_capabilities()
+        max_by_type = {
+            "image": media.get("max_image_bytes") or DEFAULT_CHAT_ATTACHMENT_MAX_BYTES,
+            "pdf": media.get("max_pdf_bytes") or DEFAULT_CHAT_ATTACHMENT_MAX_BYTES,
+            "text": media.get("max_text_bytes") or DEFAULT_CHAT_ATTACHMENT_MAX_BYTES,
+            "audio": media.get("max_audio_bytes") or DEFAULT_CHAT_ATTACHMENT_MAX_BYTES,
+            "other": DEFAULT_CHAT_ATTACHMENT_MAX_BYTES,
+        }
+
+        for att in attachments:
+            # Ownership / scope: creator, already linked to this thread, or
+            # linked to the message/thread the user can already read.
+            owned = att.create_uid == self.env.user
+            linked_here = att.res_model == self._name and att.res_id == self.id
+            if not owned and not linked_here and not self.env.user.has_group(
+                "base.group_system"
+            ):
+                raise UserError(
+                    _(
+                        "Attachment '%(name)s' does not belong to this chat. "
+                        "Re-upload the file from the composer."
+                    )
+                    % {"name": att.name or att.id}
+                )
+
+            mimetype = att.mimetype or ""
+            if mimetype in IMAGE_MIMETYPES:
+                kind = "image"
+            elif mimetype in PDF_MIMETYPES:
+                kind = "pdf"
+            elif mimetype in TEXT_MIMETYPES:
+                kind = "text"
+            elif mimetype in AUDIO_MIMETYPES:
+                kind = "audio"
+            else:
+                kind = "other"
+            size = att.file_size or 0
+            if not size and att.datas:
+                try:
+                    size = len(base64.b64decode(att.datas))
+                except (TypeError, ValueError):
+                    size = 0
+            limit = max_by_type[kind]
+            if size and size > limit:
+                raise UserError(
+                    _(
+                        "Attachment '%(name)s' is too large (%(size)s bytes). "
+                        "Maximum for %(kind)s files is %(limit)s bytes."
+                    )
+                    % {
+                        "name": att.name or att.id,
+                        "size": size,
+                        "kind": kind,
+                        "limit": limit,
+                    }
+                )
+
+            # Bind unlinked uploads to this thread so later turns keep ACL scope.
+            if not att.res_model or not att.res_id:
+                att.write({"res_model": self._name, "res_id": self.id})
+
+        return attachments.ids
+
+    def get_composer_media_capabilities(self):
+        """JSON-safe media capability contract for the active thread model."""
+        self.ensure_one()
+        media = self.model_id.get_media_capabilities()
+        stt = self._get_batch_transcription_model()
+        media["batch_stt"] = bool(stt)
+        media["batch_stt_model_id"] = stt.id if stt else False
+        media["batch_stt_model_name"] = stt.name if stt else False
+        return media
+
+    def _get_batch_transcription_model(self):
+        """Pick a configured batch STT model for chat dictation.
+
+        Prefer a model on the same provider (OpenAI gpt-transcribe family when
+        available), then any active batch transcription model.
+        """
+        self.ensure_one()
+        Model = self.env["llm.model"]
+        domain = [
+            ("active", "=", True),
+            ("model_use", "=", "transcription"),
+            ("supports_batch_transcription", "=", True),
+        ]
+        preferred_names = (
+            "gpt-transcribe",
+            "gpt-4o-transcribe",
+            "gpt-4o-mini-transcribe",
+            "whisper-1",
+        )
+        same_provider = Model.search(
+            domain + [("provider_id", "=", self.provider_id.id)],
+            order="default desc, id asc",
+        )
+        for name in preferred_names:
+            match = same_provider.filtered(lambda m, n=name: (m.name or "").lower() == n)
+            if match:
+                return match[:1]
+        if same_provider:
+            return same_provider[:1]
+        return Model.search(domain, order="default desc, id asc", limit=1)
+
+    def transcribe_voice_note(self, attachment_id, language=None, keep_recording=True):
+        """Transcribe a recorded voice note for chat dictation.
+
+        Returns editable transcript text plus metadata. Does not auto-send.
+        The original recording may be kept as a dictation-source attachment
+        for playback/audit; it is never sent as chat-model audio input.
+        """
+        self.ensure_one()
+        attachment = self.env["ir.attachment"].browse(int(attachment_id)).exists()
+        if not attachment:
+            raise UserError(_("Voice recording not found."))
+        try:
+            attachment.check_access_rights("read")
+            attachment.check_access_rule("read")
+        except AccessError as err:
+            raise UserError(_("You do not have access to this recording.")) from err
+
+        stt_model = self._get_batch_transcription_model()
+        if not stt_model:
+            raise UserError(
+                _(
+                    "No speech-to-text model is configured. Ask an administrator to "
+                    "enable a batch transcription model (for example gpt-transcribe)."
+                )
+            )
+
+        if not attachment.datas:
+            raise UserError(_("The recording is empty."))
+        try:
+            audio_bytes = base64.b64decode(attachment.datas)
+        except (TypeError, ValueError) as err:
+            raise UserError(_("The recording could not be read.")) from err
+        if not audio_bytes:
+            raise UserError(_("The recording is empty."))
+
+        filename = attachment.name or "voice-note.webm"
+        content_type = attachment.mimetype or "audio/webm"
+        try:
+            result = stt_model.transcribe(
+                audio_bytes,
+                filename=filename,
+                content_type=content_type,
+                language=language,
+            )
+        except LLMTranscriptionError as err:
+            # Never include audio bytes in the error payload.
+            raise UserError(
+                _("Speech-to-text failed: %(message)s")
+                % {"message": err.message or err.code}
+            ) from err
+
+        transcript = (result.get("text") or "").strip()
+        if keep_recording:
+            attachment.write(
+                {
+                    "description": mark_attachment_media_role(
+                        attachment.description, "dictation"
+                    ),
+                    "res_model": self._name,
+                    "res_id": self.id,
+                }
+            )
+        else:
+            attachment.unlink()
+            attachment = self.env["ir.attachment"]
+
+        return {
+            "text": transcript,
+            "language": result.get("language") or language or False,
+            "model": stt_model.name,
+            "provider_request_id": result.get("provider_request_id") or False,
+            "attachment_id": attachment.id if attachment else False,
+            "duration_ms": result.get("duration_ms") or False,
+        }
+
+    def mark_attachment_analyze_audio(self, attachment_id):
+        """Mark an uploaded audio clip for direct analysis (not dictation).
+
+        Only allowed when the active model/endpoint supports direct audio chat.
+        """
+        self.ensure_one()
+        media = self.model_id.get_media_capabilities()
+        if not media.get("direct_audio_chat"):
+            raise UserError(
+                _(
+                    "The selected model does not support direct audio analysis. "
+                    "Use voice dictation instead."
+                )
+            )
+        if media.get("chat_endpoint") == "responses":
+            raise UserError(
+                _(
+                    "Audio analysis is not available on the Responses endpoint. "
+                    "Choose an audio-capable Chat Completions model, or use dictation."
+                )
+            )
+        attachment = self.env["ir.attachment"].browse(int(attachment_id)).exists()
+        if not attachment:
+            raise UserError(_("Audio attachment not found."))
+        self._validate_chat_attachments([attachment.id])
+        attachment.write(
+            {
+                "description": mark_attachment_media_role(
+                    attachment.description, "analyze"
+                ),
+            }
+        )
+        return {
+            "attachment_id": attachment.id,
+            "media_role": "analyze",
+            "tools_with_direct_audio": bool(media.get("tools_with_direct_audio")),
+        }
 
     def _handle_unsupported_attachments(self, unsupported):
         """Create an info message for unsupported attachments.
