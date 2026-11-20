@@ -152,6 +152,16 @@ class MailMessage(models.Model):
         help="JSON data for tool messages and other structured content",
     )
 
+    llm_provider_state = fields.Json(
+        string="LLM Provider State",
+        copy=False,
+        prefetch=False,
+        groups="base.group_system",
+        help="Opaque per-provider data needed to continue the conversation "
+        "(e.g. encrypted reasoning items), keyed by provider. Server-side "
+        "only: never sent to the browser; read and written with sudo.",
+    )
+
     @api.depends("subtype_id")
     def _compute_llm_role(self):
         """Compute the LLM role for messages based on their subtype."""

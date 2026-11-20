@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_model_view_form_openai" model="ir.ui.view">
+        <field name="name">llm.model.view.form.openai</field>
+        <field name="model">llm.model</field>
+        <field name="inherit_id" ref="llm.llm_model_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button
+                    name="action_openai_probe_capabilities"
+                    string="Probe OpenAI Capabilities"
+                    type="object"
+                    invisible="not id or not is_openai_routed or model_use in ('embedding', 'transcription')"
+                    help="Send a few minimal requests to OpenAI to record which endpoints, function tools and image input this model accepts. Required before an unverified model can be used for chat."
+                />
+            </xpath>
+            <xpath expr="//sheet/group" position="after">
+                <field name="is_openai_routed" invisible="1" />
+                <group
+                    string="OpenAI Chat"
+                    name="openai_chat"
+                    invisible="not is_openai_routed or model_use in ('embedding', 'transcription')"
+                >
+                    <group>
+                        <field name="openai_endpoint" />
+                        <field name="openai_reasoning_effort" />
+                        <field name="openai_max_output_tokens" />
+                        <field name="openai_verbosity" />
+                    </group>
+                    <group>
+                        <field name="openai_capability_summary" />
+                        <field name="openai_probe_result" widget="json_editor" invisible="not openai_probe_result" />
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

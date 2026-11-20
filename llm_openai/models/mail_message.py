@@ -3,6 +3,8 @@ import logging
 
 from odoo import models, tools
 
+from ..utils.openai_responses import REPLAY_KEY, STATE_KEY
+
 _logger = logging.getLogger(__name__)
 
 
@@ -115,6 +117,10 @@ class MailMessage(models.Model):
                     for tc in tool_calls
                 ]
 
+            state = self._openai_replay_state()
+            if state:
+                formatted_message[REPLAY_KEY] = state
+
             return formatted_message
 
         if self.is_llm_tool_message()[self]:
@@ -147,3 +153,22 @@ class MailMessage(models.Model):
             }
             return formatted_message
         return None
+
+    def _openai_replay_state(self):
+        """Stored Responses output for this assistant turn, for manual replay.
+
+        ``text_matches_body`` is False once the visible body was edited, so
+        the encrypted reasoning that produced the old text is not replayed.
+        """
+        self.ensure_one()
+        state = ((self.sudo().llm_provider_state or {}).get(STATE_KEY)) or {}
+        if not state:
+            return None
+        stored_text = state.get("text") or ""
+        current = tools.html2plaintext(self.body or "").strip()
+        if "llm.thread" in self.env:
+            rendered = self.env["llm.thread"]._process_llm_body(stored_text) if stored_text else ""
+            expected = tools.html2plaintext(rendered or "").strip()
+        else:
+            expected = stored_text.strip()
+        return dict(state, text_matches_body=current == expected)

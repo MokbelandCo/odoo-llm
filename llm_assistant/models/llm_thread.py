@@ -425,8 +425,12 @@ class LLMThread(models.Model):
         message = None
         accumulated_content = ""
         collected_tool_calls = []
+        provider_state = None
 
         for chunk in stream_response:
+            if chunk.get("provider_state"):
+                provider_state = chunk["provider_state"]
+
             # Initialize message on first content
             if message is None and chunk.get("content"):
                 message = self.message_post(
@@ -466,21 +470,29 @@ class LLMThread(models.Model):
                     llm_role="assistant",
                     author_id=False,
                 )
+                self._store_provider_state(message, provider_state)
                 # Commit to ensure message is saved before tool execution
                 self.env.cr.commit()
                 yield {"type": "message_create", "message": message.to_store_format()}
             else:
                 # Update existing message with tool calls
                 message.write({"body_json": body_json})
+                self._store_provider_state(message, provider_state)
                 # Commit to ensure update is saved
                 self.env.cr.commit()
                 yield {"type": "message_update", "message": message.to_store_format()}
         elif message and accumulated_content:
             # Final update for assistant message without tool calls
             message.write({"body": self._process_llm_body(accumulated_content)})
+            self._store_provider_state(message, provider_state)
             yield {"type": "message_update", "message": message.to_store_format()}
 
         return message
+
+    def _store_provider_state(self, message, provider_state):
+        """Keep provider continuation data (e.g. reasoning items) server-side."""
+        if message and provider_state:
+            message.sudo().write({"llm_provider_state": provider_state})
 
     def _handle_non_streaming_response(self, response):
         """Handle non-streaming response from LLM provider."""
@@ -501,6 +513,7 @@ class LLMThread(models.Model):
             llm_role="assistant",
             author_id=False,
         )
+        self._store_provider_state(assistant_message, response.get("provider_state"))
 
         yield {
             "type": "message_create",
