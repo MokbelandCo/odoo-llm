@@ -164,7 +164,7 @@
                   name="tool_ids"
                   widget="many2many_tags"
                   options="{'no_create': True}"
-                  domain="[('always_include', '=', False)]"
+                  domain="[('always_include', '=', 'no')]"
                   placeholder="Select tools for this assistant..."
                 />
                                 <field
@@ -174,7 +174,7 @@
                             </group>
                             <div class="text-muted px-3 py-2">
                                 Select the tools this assistant may need. These tools will be auto selected when you assign this assistant on LLM Chat Thread.
-                                Always Include tools are added to every request automatically and are not listed here.
+                                Always Include tools are added automatically for the matching audience and are not listed here.
                                 <br />
                                 <strong
                 >Max Tool Calls:</strong> Prevents infinite loops by limiting consecutive tool executions (default: 5).

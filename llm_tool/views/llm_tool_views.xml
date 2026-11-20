@@ -157,7 +157,7 @@
                 <filter
           string="Always Include"
           name="always_include"
-          domain="[('always_include', '=', True)]"
+          domain="[('always_include', '!=', 'no')]"
         />
                 <filter
           string="Active"

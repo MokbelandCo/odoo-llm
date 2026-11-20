@@ -360,7 +360,7 @@ export const llmStoreService = {
           "llm.tool",
           [
             ["active", "=", true],
-            ["always_include", "=", false],
+            ["always_include", "=", "no"],
           ],
           ["id", "name"]
         );

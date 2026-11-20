@@ -181,7 +181,7 @@ class TestAssistantToolSelection(ToolSelectionCase):
             )
 
     def test_always_include_tool_is_offered_once_and_callable(self):
-        self.retriever.always_include = True
+        self._set_always_include(self.retriever, "always")
         assistant = self._assistant(tool_ids=[(6, 0, self.optional_c.ids)])
         for stream in (True, False):
             for with_assistant in (False, True):
@@ -213,8 +213,8 @@ class TestAssistantToolSelection(ToolSelectionCase):
             list(thread.generate(user_message_body="first"))
         self.assertIn(self.always_d.name, requests[0]["tools"])
 
-        self.always_d.always_include = False
-        self.optional_c.always_include = True
+        self.always_d.always_include = "no"
+        self._set_always_include(self.optional_c, "always")
         with self._fake_provider([{"content": "two"}]) as requests:
             list(thread.generate(user_message_body="second"))
         self.assertNotIn(self.always_d.name, requests[0]["tools"])
@@ -232,11 +232,14 @@ class TestAssistantToolSelection(ToolSelectionCase):
     @mute_logger("odoo.addons.llm_assistant.models.llm_thread")
     def test_deactivated_tool_is_hidden_and_refused(self):
         for stream in (True, False):
-            for flags in ({}, {"always_include": True}):
+            for flags in ({}, {"always_include": "always"}):
                 with self.subTest(stream=stream, **flags):
-                    self.retriever.write({"active": True, "always_include": False})
+                    self._set_always_include(self.retriever, "no", active=True)
                     thread = self._thread(tool_ids=[(6, 0, self.retriever.ids)])
-                    self.retriever.write({"active": False, **flags})
+                    if flags:
+                        self._set_always_include(self.retriever, "always", active=False)
+                    else:
+                        self.retriever.write({"active": False})
                     with self._fake_provider(
                         [self._retriever_call(), {"content": "no tool"}],
                         stream=stream,
@@ -247,7 +250,7 @@ class TestAssistantToolSelection(ToolSelectionCase):
                     self.assertEqual(tool_message.body_json["status"], "error")
                     self.assertIn("not found in thread", tool_message.body_json["error"])
                     self.assertNotIn("result", tool_message.body_json)
-        self.retriever.write({"active": True, "always_include": True})
+        self._set_always_include(self.retriever, "always", active=True)
         thread = self._thread(tool_ids=[(6, 0, [])])
         with self._fake_provider([{"content": "back"}]) as requests:
             list(thread.generate(user_message_body="reactivated"))
@@ -270,7 +273,7 @@ class TestAssistantToolSelection(ToolSelectionCase):
         user = new_test_user(
             self.env, login="tool_runtime_user", groups="base.group_user"
         )
-        self.retriever.write({"always_include": True})
+        self._set_always_include(self.retriever, "always")
         thread = self._thread(env=self.env(user=user), user_id=user.id)
         with self._fake_provider(
             [

@@ -25,9 +25,14 @@ class ToolSelectionCase(TransactionCase):
         )
         Tool = cls.env["llm.tool"].with_context(active_test=False)
         # Shipped tools must not leak into the expectations below.
-        Tool.search([]).write({"default": False, "always_include": False})
+        Tool.search([]).write({"default": False, "always_include": "no"})
 
         def tool(name, **vals):
+            if (
+                vals.get("always_include") in ("portal", "authenticated", "always")
+                and "portal_ai_safe" in Tool._fields
+            ):
+                vals.setdefault("portal_ai_safe", True)
             return Tool.create(
                 {
                     "name": name,
@@ -40,15 +45,21 @@ class ToolSelectionCase(TransactionCase):
         cls.default_a = tool("sel_default_a", default=True)
         cls.default_b = tool("sel_default_b", default=True)
         cls.optional_c = tool("sel_optional_c")
-        cls.always_d = tool("sel_always_d", always_include=True)
-        cls.both_e = tool("sel_both_e", default=True, always_include=True)
+        cls.always_d = tool("sel_always_d", always_include="always")
+        cls.both_e = tool("sel_both_e", default=True, always_include="always")
         cls.inactive_default = tool("sel_inactive_default", default=True, active=False)
         cls.inactive_always = tool(
-            "sel_inactive_always", always_include=True, active=False
+            "sel_inactive_always", always_include="always", active=False
         )
         cls.technical_always = tool(
-            "sel_technical_always", always_include=True, category="technical"
+            "sel_technical_always", always_include="always", category="technical"
         )
+
+    def _set_always_include(self, tool, value, **extra):
+        vals = dict(extra, always_include=value)
+        if value in ("portal", "authenticated", "always") and "portal_ai_safe" in tool._fields:
+            vals.setdefault("portal_ai_safe", True)
+        tool.write(vals)
 
     def _thread(self, env=None, **vals):
         env = env or self.env
@@ -105,9 +116,9 @@ class TestThreadToolSelection(ToolSelectionCase):
     def test_always_include_changes_reach_existing_threads(self):
         thread = self._thread()
         self.assertIn(self.always_d, thread._get_effective_tools())
-        self.always_d.always_include = False
+        self.always_d.always_include = "no"
         self.assertNotIn(self.always_d, thread._get_effective_tools())
-        self.optional_c.always_include = True
+        self._set_always_include(self.optional_c, "always")
         self.assertIn(self.optional_c, thread._get_effective_tools())
 
     def test_inactive_tools_never_effective_even_with_stale_ids(self):
@@ -144,6 +155,50 @@ class TestThreadToolSelection(ToolSelectionCase):
         self.assertEqual(defaults, self.default_a | self.default_b)
         self.assertNotIn(self.both_e, defaults)
 
+    def test_always_include_matches_the_thread_user(self):
+        Tool = self.env["llm.tool"]
+        def audience_tool(name, value):
+            vals = {
+                "name": name,
+                "description": name,
+                "implementation": "function",
+                "always_include": value,
+            }
+            if value in ("portal", "authenticated", "always") and "portal_ai_safe" in Tool._fields:
+                vals["portal_ai_safe"] = True
+            return Tool.create(vals)
+
+        internal = audience_tool("sel_audience_internal", "internal")
+        portal = audience_tool("sel_audience_portal", "portal")
+        authenticated = audience_tool("sel_audience_authenticated", "authenticated")
+        always = self.always_d | self.both_e | self.technical_always
+
+        staff = self._thread(tool_ids=[(6, 0, [])])
+        effective = staff._get_effective_tools()
+        self.assertIn(internal, effective)
+        self.assertIn(authenticated, effective)
+        self.assertTrue(always <= effective)
+        self.assertNotIn(portal, effective)
+
+        portal_user = new_test_user(
+            self.env, login="tool_selection_portal", groups="base.group_portal"
+        )
+        portal_thread = self._thread(user_id=portal_user.id, tool_ids=[(6, 0, [])])
+        effective = portal_thread._get_effective_tools()
+        self.assertIn(portal, effective)
+        self.assertIn(authenticated, effective)
+        self.assertTrue(always <= effective)
+        self.assertNotIn(internal, effective)
+
+        public_thread = self._thread(
+            user_id=self.env.ref("base.public_user").id, tool_ids=[(6, 0, [])]
+        )
+        effective = public_thread._get_effective_tools()
+        self.assertIn(portal, effective)
+        self.assertIn(authenticated, effective)
+        self.assertTrue(always <= effective)
+        self.assertNotIn(internal, effective)
+
     def test_record_rules_apply_to_always_include_tools(self):
         user = new_test_user(
             self.env, login="tool_selection_user", groups="base.group_user"
@@ -178,7 +233,7 @@ class TestThreadToolExecutionGuard(ToolSelectionCase):
         )
 
     def test_always_include_tool_executes_without_selection(self):
-        self.retriever.write({"always_include": True})
+        self._set_always_include(self.retriever, "always")
         thread = self._thread(tool_ids=[(6, 0, [])])
         result = self._call(self.retriever, thread)
         self.assertIn("Tool Guard Partner", json.dumps(result, default=str))

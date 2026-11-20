@@ -27,7 +27,7 @@
                 name="tool_ids"
                 widget="many2many_tags"
                 options="{'no_create': True}"
-                domain="[('always_include', '=', False)]"
+                domain="[('always_include', '=', 'no')]"
               />
                         </group>
                         <group>
