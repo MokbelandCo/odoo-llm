@@ -92,7 +92,13 @@ class OpenAIModelCapabilities:
 
     @property
     def chat_capable(self):
-        return self.kind == KIND_CHAT and bool(self.endpoints)
+        # Audio-only chat models (gpt-4o-audio-preview) speak Chat Completions
+        # with input_audio; they are chat-capable but not Responses-capable.
+        return self.kind in (KIND_CHAT, KIND_AUDIO_CHAT) and bool(self.endpoints)
+
+    @property
+    def direct_audio_chat(self):
+        return self.kind == KIND_AUDIO_CHAT and self.supports_endpoint(CHAT_COMPLETIONS)
 
     @property
     def verified(self):
@@ -346,6 +352,21 @@ def lookup(model_id):
             model_id=model_id, base_id=base, source=SOURCE_REGISTRY, **CHAT_MODELS[base]
         )
     kind = _nonchat_kind(base)
+    if kind == KIND_AUDIO_CHAT:
+        # OpenAI documents input_audio on Chat Completions only; Responses
+        # rejects audio. Offer tools when the model family historically did.
+        return OpenAIModelCapabilities(
+            model_id=model_id,
+            base_id=base,
+            kind=KIND_AUDIO_CHAT,
+            source=SOURCE_REGISTRY,
+            endpoints=(CHAT_COMPLETIONS,),
+            vision=False,
+            function_tools=False,
+            cc_function_tools=ALWAYS,
+            streaming=True,
+            note="Audio chat uses Chat Completions input_audio; not Responses.",
+        )
     if kind:
         return OpenAIModelCapabilities(
             model_id=model_id, base_id=base, kind=kind, source=SOURCE_REGISTRY

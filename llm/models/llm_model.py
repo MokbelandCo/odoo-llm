@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from .llm_media_capabilities import MediaCapabilities
+
 
 class LLMModel(models.Model):
     _name = "llm.model"
@@ -192,6 +194,38 @@ class LLMModel(models.Model):
                     ]
                 ).write({"default": False})
         return records
+
+    def get_media_capabilities(self):
+        """Return the provider-neutral media capability contract for this model.
+
+        Used by the chat composer, thread attachment validation and provider
+        formatters. Providers may refine the defaults through
+        ``<service>_media_capabilities``.
+        """
+        self.ensure_one()
+        multimodal = self.model_use == "multimodal"
+        caps = MediaCapabilities(
+            image=multimodal,
+            pdf=multimodal,
+            text_file=True,
+            direct_audio_chat=False,
+            realtime_voice=False,
+            chat_endpoint=None,
+            tools_with_direct_audio=False,
+        )
+        if not self.provider_id or not self.provider_id.service:
+            return caps.to_dict()
+        method = getattr(
+            self.provider_id,
+            "%s_media_capabilities" % self.provider_id.service,
+            None,
+        )
+        if not method:
+            return caps.to_dict()
+        provider_caps = method(model=self) or {}
+        merged = caps.to_dict()
+        merged.update({key: provider_caps[key] for key in provider_caps if key in merged})
+        return merged
 
     def chat(self, messages, stream=False, **kwargs):
         """Send chat messages using this model"""

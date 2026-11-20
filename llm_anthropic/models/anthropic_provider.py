@@ -312,6 +312,23 @@ class LLMProvider(models.Model):
 
         return formatted
 
+    def anthropic_media_capabilities(self, model=None):
+        """Fine-grained media contract for Anthropic Messages.
+
+        Claude accepts image and PDF document blocks. Raw audio is not accepted;
+        the composer must use dictation (batch STT) instead of analyze-audio.
+        """
+        multimodal = bool(model and model.model_use == "multimodal")
+        return {
+            "image": multimodal,
+            "pdf": multimodal,
+            "text_file": True,
+            "direct_audio_chat": False,
+            "realtime_voice": False,
+            "chat_endpoint": None,
+            "tools_with_direct_audio": False,
+        }
+
     def anthropic_format_messages(self, messages, system_prompt=None, model=None):
         """Format mail.message records for Anthropic API.
 
@@ -326,7 +343,10 @@ class LLMProvider(models.Model):
         Returns:
             List of formatted messages for Anthropic
         """
-        is_multimodal = model and model.model_use == "multimodal"
+        media = model.get_media_capabilities() if model else {}
+        is_multimodal = bool(media.get("image") or media.get("pdf"))
+        if model and not is_multimodal:
+            is_multimodal = model.model_use == "multimodal"
         formatted_messages = []
 
         for message in messages:

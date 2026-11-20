@@ -34,9 +34,15 @@ class MailMessage(models.Model):
                 images = []
                 pdfs = []
 
-            # Only include audio if model supports it
+            # Only include analyze-mode audio when the model/endpoint supports it.
+            # Dictation-source recordings stay attached for audit but are never
+            # sent as input_audio.
             if is_audio_model:
-                audios = self._get_audio_attachments()
+                audios = [
+                    audio
+                    for audio in self._get_audio_attachments()
+                    if audio.get("media_role") == "analyze"
+                ]
             else:
                 audios = []
 

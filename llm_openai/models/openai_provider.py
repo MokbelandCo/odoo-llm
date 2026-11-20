@@ -1711,12 +1711,13 @@ class LLMProvider(models.Model):
         "o3",
     )
 
-    #: Kinds this provider has no Odoo adapter for; never offered as chat.
+    #: Kinds this provider has no Odoo chat adapter for; never offered as chat.
+    #: Audio chat is chat-capable via Chat Completions (MH-1329); realtime
+    #: duplex voice is MH-1330 and stays unsupported here.
     OPENAI_UNSUPPORTED_KINDS = frozenset({
         KIND_SPEECH,
         KIND_IMAGE,
         KIND_REALTIME,
-        KIND_AUDIO_CHAT,
         KIND_MODERATION,
         KIND_SEARCH,
         KIND_COMPLETION,
@@ -1728,6 +1729,8 @@ class LLMProvider(models.Model):
             tags = ["chat"]
             if capabilities.vision:
                 tags.append("multimodal")
+            if getattr(capabilities, "direct_audio_chat", False):
+                tags.append("direct_audio_chat")
             if capabilities.function_tools or capabilities.cc_function_tools != "never":
                 tags.append("function_calling")
             if capabilities.reasoning:
@@ -1811,6 +1814,58 @@ class LLMProvider(models.Model):
         )
         return validator.validate_and_clean()
 
+    def openai_media_capabilities(self, model=None):
+        """Fine-grained media contract for OpenAI chat models."""
+        if not model:
+            return {}
+        media = {
+            "image": model.model_use == "multimodal",
+            "pdf": model.model_use == "multimodal",
+            "text_file": True,
+            "direct_audio_chat": False,
+            "realtime_voice": False,
+            "chat_endpoint": None,
+            "tools_with_direct_audio": False,
+        }
+        if not self._openai_uses_capability_routing():
+            return media
+        capabilities = model._openai_capabilities()
+        endpoint = None
+        try:
+            endpoint = self._openai_select_endpoint(
+                capabilities,
+                getattr(model, "openai_endpoint", None) or "auto",
+                has_tools=False,
+                effort=getattr(model, "openai_reasoning_effort", None) or None,
+            )
+        except Exception:
+            # Capability UI must not crash when a model is unverified or
+            # Responses-only; leave chat_endpoint unset and fall back below.
+            if capabilities.supports_endpoint(CHAT_COMPLETIONS):
+                endpoint = CHAT_COMPLETIONS
+            elif capabilities.supports_endpoint(RESPONSES):
+                endpoint = RESPONSES
+        media.update(
+            {
+                "image": bool(capabilities.vision),
+                # Native file/PDF blocks are accepted on both chat endpoints for
+                # vision-capable models; Responses maps them to input_file.
+                "pdf": bool(capabilities.vision),
+                "text_file": True,
+                "direct_audio_chat": bool(
+                    getattr(capabilities, "direct_audio_chat", False)
+                    and endpoint == CHAT_COMPLETIONS
+                ),
+                "realtime_voice": capabilities.kind == KIND_REALTIME,
+                "chat_endpoint": endpoint,
+                "tools_with_direct_audio": bool(
+                    getattr(capabilities, "direct_audio_chat", False)
+                    and capabilities.tools_supported(CHAT_COMPLETIONS)
+                ),
+            }
+        )
+        return media
+
     def openai_format_messages(self, messages, system_prompt=None, model=None):
         """Format messages for OpenAI API
 
@@ -1822,9 +1877,14 @@ class LLMProvider(models.Model):
         Returns:
             List of formatted messages in OpenAI-compatible format
         """
-        is_multimodal = bool(model) and model.model_use == "multimodal"
+        media = model.get_media_capabilities() if model else {}
+        is_multimodal = bool(media.get("image") or media.get("pdf"))
         if model and not is_multimodal and self._openai_uses_capability_routing():
             is_multimodal = model._openai_capabilities().vision
+        is_audio_model = bool(media.get("direct_audio_chat"))
+        # Never claim audio on Responses — the converter rejects input_audio.
+        if media.get("chat_endpoint") == RESPONSES:
+            is_audio_model = False
         formatted_messages = []
 
         if system_prompt:
@@ -1835,6 +1895,7 @@ class LLMProvider(models.Model):
                 "format_message",
                 record=message,
                 is_multimodal=is_multimodal,
+                is_audio_model=is_audio_model,
             )
             if formatted_message:
                 formatted_messages.append(formatted_message)
