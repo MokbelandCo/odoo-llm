@@ -69,6 +69,9 @@ Use cases include creating specialized assistants for customer support, data ana
             "llm_assistant/static/src/patches/llm_thread_header_patch.js",
             "llm_assistant/static/src/patches/llm_thread_header_patch.xml",
         ],
+        "web.assets_tests": [
+            "llm_assistant/static/tests/tours/**/*",
+        ],
     },
     "license": "LGPL-3",
     "installable": True,

@@ -144,7 +144,11 @@ class LLMThread(models.Model):
     tool_ids = fields.Many2many(
         "llm.tool",
         string="Available Tools",
-        help="Tools that can be used by the LLM in this thread",
+        default=lambda self: self.env["llm.tool"]._get_default_optional_tools(),
+        help="Optional tools selected for this thread. New threads start with "
+        "the active Default tools. Always Include tools that match this "
+        "thread's user are added to every request and do not need to be "
+        "selected here.",
     )
 
     attachment_ids = fields.Many2many(
@@ -235,6 +239,40 @@ class LLMThread(models.Model):
                 record.name = f"New Chat #{record.id}"
 
         return records
+
+    # ============================================================================
+    # TOOL SELECTION
+    # ============================================================================
+
+    def _get_tool_audience_user(self):
+        """User whose type selects Always Include tools for this thread.
+
+        Automation runs own the thread as their execution user, so that user
+        is used here. Portal conversations override this: they execute as an
+        internal service user, and the visitor is the audience.
+        """
+        self.ensure_one()
+        return self.user_id or self.env.user
+
+    def _get_always_include_tools(self):
+        """Active Always Include tools that apply to this thread's audience user."""
+        self.ensure_one()
+        return self.env["llm.tool"]._get_always_include_tools(
+            self._get_tool_audience_user()
+        )
+
+    def _get_effective_tools(self):
+        """Tools offered to the provider and allowed to run for this thread.
+
+        Active Always Include tools for the audience user, plus the active
+        tools selected in ``tool_ids``. Inactive tools never qualify, whatever
+        ids are stored. The tool search runs as the current user, so llm.tool
+        record rules apply. Resolved on every request, so flag changes reach
+        open threads.
+        """
+        self.ensure_one()
+        selected = self.tool_ids.filtered("active")
+        return selected | self._get_always_include_tools()
 
     @api.depends("message_ids.attachment_ids")
     def _compute_attachment_ids(self):

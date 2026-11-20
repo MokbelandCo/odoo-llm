@@ -355,10 +355,13 @@ export const llmStoreService = {
       },
 
       async loadLLMTools() {
-        // Load available tools with minimal fields
+        // Optional tools only: Always Include tools are added by the server.
         const tools = await orm.searchRead(
           "llm.tool",
-          [["active", "=", true]],
+          [
+            ["active", "=", true],
+            ["always_include", "=", "no"],
+          ],
           ["id", "name"]
         );
 

@@ -92,7 +92,33 @@ class LLMTool(models.Model):
     # Default tool flag
     default = fields.Boolean(
         default=False,
-        help="Set to true if this is a default tool to be included in all LLM requests",
+        tracking=True,
+        help="Preselect this tool in new chats and new assistants. Users can "
+        "remove it from a chat or an assistant; later changes to this flag "
+        "do not change chats or assistants that already exist.",
+    )
+
+    always_include = fields.Selection(
+        selection=[
+            ("no", "No"),
+            ("internal", "Internal Users Only"),
+            ("portal", "Portal Users Only"),
+            ("authenticated", "Authenticated Users (Portal + Internal)"),
+            ("always", "Always"),
+        ],
+        string="Always Include",
+        default="no",
+        required=True,
+        tracking=True,
+        help="Add this active tool to chat requests for the chosen audience, "
+        "including chats and assistants that already exist. It is hidden from "
+        "the tool selectors and cannot be removed from a chat. Takes "
+        "precedence over Default. Internal and portal mean an authenticated "
+        "Odoo internal user and an authenticated portal user. Authenticated "
+        "means either of those. Public and unauthenticated users are treated "
+        "as portal users. Automation runs use the user the run executes as. "
+        "A portal or public user only receives portal-safe tools, and that "
+        "restriction overrides Always Include.",
     )
 
     # Auto-update flag for function tools
@@ -144,6 +170,81 @@ class LLMTool(models.Model):
         return [
             ("function", "Function"),
         ]
+
+    # ``active`` is in both domains so inactive tools stay out even when the
+    # caller's context carries ``active_test=False``. The search runs as the
+    # current user, so llm.tool record rules apply.
+    @api.model
+    def _get_default_optional_tools(self):
+        """Active Default tools to preselect in new chats and assistants."""
+        return self.search(
+            [
+                ("active", "=", True),
+                ("default", "=", True),
+                ("always_include", "=", "no"),
+            ]
+        )
+
+    # Which Always Include values apply to each kind of user.
+    # Public and unauthenticated users are treated as portal users.
+    _ALWAYS_INCLUDE_FOR_AUDIENCE = {
+        "internal": ("internal", "authenticated", "always"),
+        "portal": ("portal", "authenticated", "always"),
+    }
+    # Values that can be added to a portal or public request.
+    _PORTAL_ALWAYS_INCLUDE = ("portal", "authenticated", "always")
+
+    @api.model
+    def _always_include_audience(self, user):
+        """``internal`` for an authenticated internal user, otherwise ``portal``.
+
+        An authenticated portal user is ``portal``. A public user, a missing
+        user, or any other unauthenticated user is treated as portal too.
+        """
+        user = user.sudo() if user else user
+        if user and user.exists() and not user._is_public() and user.has_group("base.group_user"):
+            return "internal"
+        return "portal"
+
+    @api.model
+    def _get_always_include_tools(self, user=None):
+        """Active Always Include tools that apply to ``user`` (defaults to the current user).
+
+        The search runs as the current user, so llm.tool record rules apply.
+        ``user`` only chooses the audience.
+        """
+        user = user or self.env.user
+        audience = self._always_include_audience(user)
+        values = self._ALWAYS_INCLUDE_FOR_AUDIENCE[audience]
+        return self.search(
+            [("active", "=", True), ("always_include", "in", list(values))]
+        )
+
+    def _auto_init(self):
+        """Convert the original boolean column before the selection column is created.
+
+        ``true`` becomes ``always`` (the old flag meant every request) and
+        ``false`` becomes ``no``. A fresh install has no column yet.
+        """
+        self.env.cr.execute(
+            """
+            SELECT data_type FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'llm_tool'
+              AND column_name = 'always_include'
+            """
+        )
+        row = self.env.cr.fetchone()
+        if row and row[0] == "boolean":
+            self.env.cr.execute(
+                """
+                ALTER TABLE llm_tool
+                    ALTER COLUMN always_include DROP DEFAULT,
+                    ALTER COLUMN always_include TYPE varchar
+                    USING CASE WHEN always_include THEN 'always' ELSE 'no' END
+                """
+            )
+        return super()._auto_init()
 
     def get_pydantic_model_from_signature(self, method):
         """Create a Pydantic model from a method signature"""

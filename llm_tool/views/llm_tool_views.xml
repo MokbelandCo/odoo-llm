@@ -11,6 +11,7 @@
                 <field name="category" />
                 <field name="title" optional="show" />
                 <field name="default" />
+                <field name="always_include" />
                 <field name="active" />
                 <field name="requires_user_consent" />
                 <field name="read_only_hint" optional="hide" />
@@ -37,6 +38,7 @@
                         <group string="Basic Configuration">
                             <field name="implementation" />
                             <field name="default" />
+                            <field name="always_include" />
                             <field name="active" />
                             <field name="requires_user_consent" />
                             <field
@@ -151,6 +153,11 @@
           string="Default Tools"
           name="default"
           domain="[('default', '=', True)]"
+        />
+                <filter
+          string="Always Include"
+          name="always_include"
+          domain="[('always_include', '!=', 'no')]"
         />
                 <filter
           string="Active"
