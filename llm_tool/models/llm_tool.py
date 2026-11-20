@@ -507,12 +507,12 @@ class LLMTool(models.Model):
                 cr.execute(
                     "INSERT INTO llm_tool"
                     "  (name, implementation, decorator_model, decorator_method,"
-                    "   description, active, auto_update,"
+                    "   description, active, auto_update, always_include,"
                     "   read_only_hint, idempotent_hint,"
                     "   destructive_hint, open_world_hint,"
                     "   input_schema,"
                     "   create_date, write_date, create_uid, write_uid)"
-                    " VALUES (%s, 'function', %s, %s, %s, %s, true,"
+                    " VALUES (%s, 'function', %s, %s, %s, %s, true, 'no',"
                     "         %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     [
                         values["name"],
