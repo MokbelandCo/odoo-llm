@@ -132,6 +132,71 @@ To use an alternative provider with an OpenAI-compatible endpoint:
 4. Set the "Base URL" field to the appropriate endpoint URL from the table above
 5. Click "Fetch Models" to discover available models
 
+On a compatible host, chat keeps using Chat Completions with no per-model
+filtering. The capability routing below applies only to the OpenAI API
+(empty Base URL, or a host under `api.openai.com`).
+
+## Chat Model Capabilities and Endpoint Routing
+
+Each OpenAI model id is looked up in an explicit capability registry
+(`utils/openai_capabilities.py`). Snapshot (`-2025-08-07`) and fine-tune
+(`ft:`) ids use their base model's entry. An entry records:
+
+- the model kind: chat, embedding, transcription, speech, image, realtime,
+  audio chat, moderation, search or completion
+- the endpoints that serve it (`/v1/responses`, `/v1/chat/completions`)
+- function tools on each endpoint. Some GPT-5.4+ and GPT-6 models accept
+  tools on Chat Completions only with reasoning effort `none`.
+- vision, streaming, the accepted reasoning efforts per endpoint, whether
+  `temperature` / `top_p` / `logprobs` are accepted, and `verbosity`
+
+**Discovery.** "Fetch Models" skips speech, image, realtime, audio-chat,
+moderation and search models. A model that is not in the registry is
+imported as **Unverified (probe required)**. Neither kind can be picked for
+a chat thread. Run **Probe OpenAI Capabilities** on the model form to send a
+few minimal requests and record which endpoints, tools and image input the
+model accepts. A model that passes becomes Chat/Multimodal. Upgrading to
+17.0.1.12.0 moves non-chat OpenAI models that were imported as Chat to
+**Not usable in Odoo**. Nothing is archived or deleted.
+
+**Routing** (the *OpenAI Endpoint* field on the model, default *Automatic*):
+
+- Non-reasoning models that support Chat Completions (GPT-4 class) stay on
+  Chat Completions, as before.
+- Reasoning models (o-series, GPT-5, GPT-6) and Responses-only models
+  (`*-pro`, `gpt-5.3-codex`) use the Responses API.
+- When tools are present, an endpoint that cannot take them is skipped.
+  Tools are never dropped. If no endpoint can take them, or if a forced
+  endpoint cannot, the chat fails with the model, endpoint and parameter.
+
+**Parameters.** *Reasoning Effort*, *Max Output Tokens* and *Verbosity* on
+the model form map to each endpoint's own names: `reasoning.effort` or
+`reasoning_effort`, `max_output_tokens` or `max_completion_tokens`, and
+`text.verbosity` or `verbosity`. A value the model rejects raises an error
+that lists the accepted values. Parameters the model does not take at all
+(for example `temperature` on reasoning models) are left out and named in
+the server log.
+
+**Conversation state.** Odoo replays the history manually and keeps no state
+on OpenAI's side. Each request sends `store: false` and rebuilds the input
+from the thread, which stays the single source of truth for edits, deletions
+and retention. `previous_response_id` is not used. For reasoning models the
+encrypted reasoning items (`include: ["reasoning.encrypted_content"]`) are
+kept server-side on the assistant message (`mail.message.llm_provider_state`,
+system group only, never sent to the browser). They are replayed in their
+original order before the text and function calls they produced, with each
+`call_id` paired to its `function_call_output`. Reasoning is replayed only to
+the same model, and only while the assistant text is unchanged; an edited
+answer drops it.
+
+**Responses and streams.** Text, refusals, multiple function calls, usage and
+finish status are normalized to the same chunks Chat Completions produces.
+Tool calls are released only after the stream completes. An interrupted,
+failed or truncated (`max_output_tokens`) response raises an error and runs
+no tool. Errors name the model, endpoint, parameter and provider code. The
+API key, prompts and response bodies never appear in these errors or in the
+warning log.
+
 ## Technical Details
 
 This module extends the base LLM integration framework with OpenAI-specific implementations:

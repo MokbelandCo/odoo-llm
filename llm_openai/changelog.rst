@@ -1,3 +1,15 @@
+17.0.1.12.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Explicit OpenAI model capability registry: model kind, endpoints, tools, vision, reasoning efforts, sampling parameters
+* [ADD] Responses API adapter with manual stateless replay (``store: false``), encrypted reasoning continuity and call_id pairing
+* [ADD] Automatic or forced endpoint routing per model, with errors instead of dropped tools
+* [ADD] Model form settings: OpenAI Endpoint, Reasoning Effort, Max Output Tokens, Verbosity; "Probe OpenAI Capabilities" action
+* [ADD] Model uses "Unverified (probe required)" and "Not usable in Odoo"; discovery skips image/speech/realtime/moderation models
+* [IMP] Tool calls are released only after a stream completes; interrupted or truncated responses run no tool
+* [IMP] Unsupported parameters (temperature/top_p/logprobs on reasoning models) are omitted; invalid values raise actionable errors
+* [MIG] Non-chat OpenAI models imported as Chat are reclassified as "Not usable in Odoo"
+
 18.0.1.4.0 (2026-01-17)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
