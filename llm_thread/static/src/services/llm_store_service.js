@@ -10,7 +10,7 @@ import { registry } from "@web/core/registry";
  * Provides LLM-specific functionality without breaking mail components
  */
 export const llmStoreService = {
-  dependencies: ["orm", "mail.store", "mail.thread", "mail.messaging", "notification"],
+  dependencies: ["orm", "mail.store", "mail.thread", "mail.messaging", "notification", "company"],
 
   start(
     env,
@@ -20,6 +20,7 @@ export const llmStoreService = {
       "mail.thread": threadService,
       "mail.messaging": messaging,
       notification,
+      company,
     }
   ) {
     const llmStore = reactive({
@@ -207,20 +208,29 @@ export const llmStoreService = {
         }
       },
 
+      generateStreamParams(threadId, message, attachmentIds = []) {
+        const params = new URLSearchParams({ thread_id: threadId });
+        if (message) {
+          params.set("message", message);
+        }
+        if (attachmentIds.length > 0) {
+          params.set("attachment_ids", attachmentIds.join(","));
+        }
+        const companyIds = company.activeCompanyIds || [];
+        if (companyIds.length) {
+          params.set("allowed_company_ids", companyIds.join(","));
+        }
+        return params;
+      },
+
       async startLLMStreaming(threadId, message, attachmentIds = []) {
         this.stopStreaming(threadId);
 
         this.streamingThreads.add(threadId);
 
         try {
-          let url = `/llm/thread/generate?thread_id=${threadId}`;
-          if (message) {
-            url += `&message=${encodeURIComponent(message)}`;
-          }
-          if (attachmentIds.length > 0) {
-            url += `&attachment_ids=${attachmentIds.join(",")}`;
-          }
-          const eventSource = new EventSource(url);
+          const params = this.generateStreamParams(threadId, message, attachmentIds);
+          const eventSource = new EventSource(`/llm/thread/generate?${params}`);
 
           this.eventSources.set(threadId, eventSource);
 

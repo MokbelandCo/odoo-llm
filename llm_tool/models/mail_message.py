@@ -279,8 +279,13 @@ class MailMessage(models.Model):
             else arguments_str
         )
 
-        # Execute with message context
-        return tool.with_context(message=self).execute(arguments)
+        # Same company context a normal RPC sends: the browser switcher list,
+        # main company first. Absent on MCP and other non-browser runs.
+        company_ids = self.env.context.get("allowed_company_ids")
+        tool_context = {"message": self}
+        if company_ids:
+            tool_context["allowed_company_ids"] = list(company_ids)
+        return tool.with_context(**tool_context).execute(arguments)
 
     def create_tool_error_message(self, tool_call, error_msg, thread_model=None):
         """Create an error tool message.

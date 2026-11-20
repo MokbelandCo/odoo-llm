@@ -4,3 +4,4 @@ from . import test_record_links_tour
 from . import test_header_layout_tour
 from . import test_tool_selection
 from . import test_tool_selection_tour
+from . import test_browser_company_context
