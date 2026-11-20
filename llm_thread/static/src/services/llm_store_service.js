@@ -568,6 +568,37 @@ export const llmStoreService = {
         }
       },
 
+      async getThreadMediaCapabilities(threadId) {
+        if (!threadId) {
+          return {};
+        }
+        return orm.call("llm.thread", "get_composer_media_capabilities", [
+          [threadId],
+        ]);
+      },
+
+      async transcribeVoiceNote(threadId, attachmentId, language = null) {
+        if (!threadId || !attachmentId) {
+          throw new Error("threadId and attachmentId are required");
+        }
+        return orm.call("llm.thread", "transcribe_voice_note", [[threadId]], {
+          attachment_id: attachmentId,
+          language: language || null,
+          keep_recording: true,
+        });
+      },
+
+      async markAnalyzeAudio(threadId, attachmentId) {
+        if (!threadId || !attachmentId) {
+          throw new Error("threadId and attachmentId are required");
+        }
+        return orm.call("llm.thread", "mark_attachment_analyze_audio", [
+          [threadId],
+        ], {
+          attachment_id: attachmentId,
+        });
+      },
+
       // Helper methods for components
       isStreamingThread(threadId) {
         return this.streamingThreads.has(threadId);

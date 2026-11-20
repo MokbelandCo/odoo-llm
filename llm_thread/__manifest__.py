@@ -32,7 +32,7 @@ Use cases include customer support automation, data analysis, training assistanc
 Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
-    "version": "17.0.1.11.0",
+    "version": "17.0.1.12.0",
     "depends": ["base", "mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
@@ -76,9 +76,14 @@ Contact: support@apexive.com
             "llm_thread/static/src/components/llm_chat_hub/llm_chat_hub.scss",
             "llm_thread/static/src/components/llm_chat_systray/llm_chat_systray.js",
             "llm_thread/static/src/components/llm_chat_systray/llm_chat_systray.xml",
+            # Voice dictation composer (record → STT → editable text)
+            "llm_thread/static/src/components/llm_voice_composer/llm_voice_composer.js",
+            "llm_thread/static/src/components/llm_voice_composer/llm_voice_composer.xml",
+            "llm_thread/static/src/components/llm_voice_composer/llm_voice_composer.scss",
             # Patches - Safe extensions of mail components with conditional LLM logic
             "llm_thread/static/src/patches/composer_patch.js",
             "llm_thread/static/src/patches/composer_patch.xml",
+            "llm_thread/static/src/patches/composer_voice_patch.xml",
             "llm_thread/static/src/patches/thread_patch.js",
             "llm_thread/static/src/patches/thread_model_patch.js",
             "llm_thread/static/src/patches/thread_service_patch.js",

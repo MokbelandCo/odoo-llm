@@ -4,7 +4,8 @@ import { _t } from "@web/core/l10n/translation";
 import { Composer } from "@mail/core/common/composer";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
-import { useState } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { LLMVoiceComposer } from "@llm_thread/components/llm_voice_composer/llm_voice_composer";
 
 /**
  * Patch Composer to handle LLM threads
@@ -23,6 +24,40 @@ patch(Composer.prototype, {
       console.warn("LLM store service not available:", error.message);
       this.llmStore = null;
     }
+
+    this.llmMediaCapabilities = useState({
+      image: false,
+      pdf: false,
+      text_file: true,
+      direct_audio_chat: false,
+      realtime_voice: false,
+      batch_stt: false,
+    });
+
+    const loadCaps = async (threadId) => {
+      if (!this.llmStore || !threadId) {
+        return;
+      }
+      try {
+        const caps = await this.llmStore.getThreadMediaCapabilities(threadId);
+        Object.assign(this.llmMediaCapabilities, caps || {});
+      } catch (error) {
+        console.warn("Could not load LLM media capabilities:", error?.message || error);
+      }
+    };
+
+    onWillStart(() => {
+      if (this.isLLMThread) {
+        return loadCaps(this.props.composer?.thread?.id);
+      }
+    });
+    onWillUpdateProps((nextProps) => {
+      const nextId = nextProps.composer?.thread?.id;
+      const nextIsLLM = nextProps.composer?.thread?.model === "llm.thread";
+      if (nextIsLLM && nextId && nextId !== this.props.composer?.thread?.id) {
+        return loadCaps(nextId);
+      }
+    });
   },
 
   /**
@@ -130,12 +165,19 @@ patch(Composer.prototype, {
 
   /**
    * Disable send while streaming (LLM only).
-   * Odoo 17 Composer uses isSendButtonDisabled rather than isDisabled.
+   * Attachment-only sends are allowed when the model accepts media.
    */
   get isSendButtonDisabled() {
     if (this.isLLMThread) {
-      return this.isStreaming || !this.props.composer.textInputContent?.trim();
+      const hasText = Boolean(this.props.composer.textInputContent?.trim());
+      const hasAttachments = (this.props.composer.attachments || []).length > 0;
+      return this.isStreaming || (!hasText && !hasAttachments);
     }
     return super.isSendButtonDisabled;
   },
 });
+
+Composer.components = {
+  ...Composer.components,
+  LLMVoiceComposer,
+};
