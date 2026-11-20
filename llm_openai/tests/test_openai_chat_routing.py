@@ -170,8 +170,14 @@ class TestOpenAIChatRouting(TransactionCase):
         self.assertEqual(lookup("gpt-5.5-pro").endpoints, (RESPONSES,))
         self.assertFalse(lookup("gpt-5.5-pro").streaming)
         for name in ("gpt-image-1", "tts-1", "gpt-realtime", "omni-moderation-latest",
-                     "gpt-audio", "gpt-5-search-api", "dall-e-3"):
+                     "gpt-5-search-api", "dall-e-3"):
             self.assertFalse(lookup(name).chat_capable, name)
+        # Audio chat models are Chat Completions-only (MH-1329 analyze-audio).
+        audio = lookup("gpt-audio")
+        self.assertTrue(audio.chat_capable)
+        self.assertTrue(audio.direct_audio_chat)
+        self.assertEqual(audio.endpoints, (CHAT_COMPLETIONS,))
+        self.assertFalse(audio.supports_endpoint(RESPONSES))
         self.assertEqual(lookup("text-embedding-3-small").kind, "embedding")
         self.assertEqual(lookup("gpt-4o-transcribe").kind, "transcription")
         self.assertFalse(lookup("gpt-7-nova").verified)

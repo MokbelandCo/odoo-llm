@@ -5,3 +5,5 @@ from . import test_header_layout_tour
 from . import test_tool_selection
 from . import test_tool_selection_tour
 from . import test_browser_company_context
+from . import test_chat_attachments
+from . import test_chat_media_tour
